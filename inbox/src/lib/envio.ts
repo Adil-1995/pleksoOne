@@ -104,6 +104,32 @@ export async function bloquear(clienteId: string, bloquear: boolean): Promise<Re
  * Que falle el aviso NO deshace la pausa. Quedarse sin interruptor por no
  * poder avisar sería peor que quedarse sin aviso.
  */
+/**
+ * PURCHASE AL CAPI — aviso a n8n de que una venta ha pasado a VALIDADA.
+ *
+ * El navegador NO habla con Meta: el token del CAPI vive en el servidor
+ * (regla 2). Aquí solo se dice «la conversación X se validó»; n8n decide,
+ * con el cerrojo en la base, si toca enviar evento o no. Por eso da igual
+ * que esto se llame de más: validar dos veces manda UN solo Purchase.
+ *
+ * Dispara y olvida a propósito: si el aviso falla, la validación YA está
+ * guardada. Perder el aviso no puede impedirte validar un pedido, y la
+ * fila se queda visible en «validados sin reportar» para reintentarla.
+ */
+const URL_CAPI = (import.meta.env.VITE_WEBHOOK_CAPI as string | undefined)
+  || (URL_ENVIO ? URL_ENVIO.replace(/[^/]+$/, 'capi-purchase') : undefined)
+
+export async function avisarPurchase(conversacionId: number): Promise<void> {
+  if (!URL_CAPI) return
+  const { data } = await supabase.auth.getSession()
+  const token = data.session?.access_token
+  if (!token) return
+  await fetch(URL_CAPI, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+    body: JSON.stringify({ conversacion_id: conversacionId }),
+  })
+}
 export async function avisarPausaCanal(canalId: number, pausado: boolean): Promise<RespuestaEnvio> {
   return enviar({ cliente_id: '', accion: 'aviso_canal', canal_id: canalId, pausado })
 }

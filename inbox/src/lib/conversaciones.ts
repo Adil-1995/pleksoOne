@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { avisarPurchase } from './envio'
 import type { Etiqueta, EstadoProducto, Canal } from '@/tipos'
 
 /**
@@ -45,6 +46,14 @@ export async function marcarProducto(
     .upsert({ conversacion_id: conversacionId, producto, estado },
             { onConflict: 'conversacion_id,producto' })
   if (error) throw new Error(error.message)
+
+  // SOLO al pasar a validado. Desmarcar no manda nada: una venta ya
+  // reportada a Meta está reportada, y «deshacerla» no existe en el CAPI.
+  // El cerrojo de la base garantiza que validar dos veces mande UN evento,
+  // así que aquí no hace falta recordar el estado anterior ni comparar.
+  if (estado === 'validado') {
+    avisarPurchase(conversacionId).catch(() => {})
+  }
 }
 
 /**

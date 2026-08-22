@@ -49,3 +49,9 @@ fix-*.json
 rename-3b.json
 inbox/n8n-webhook-envio.json
 inbox/fase5-*.json
+
+# Artefactos de trabajo del CAPI (el estado vivo está en workflows/)
+envio-vivo.json
+capi-receptor.json
+capi-purchase-workflow.json
+build-capi.js
