@@ -14,8 +14,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'icono-192.png', 'icono-512.png'],
       manifest: {
-        name: 'LumaBot Inbox',
-        short_name: 'Inbox',
+        name: 'PleksOne',
+        short_name: 'PleksOne',
         description: 'Bandeja de entrada de Lado Luminoso',
         theme_color: '#0b141a',
         background_color: '#0b141a',
