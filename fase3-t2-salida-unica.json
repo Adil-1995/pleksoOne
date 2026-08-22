@@ -1,0 +1,475 @@
+{
+  "name": "LumaBot — Salida WhatsApp (punto único)",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "c1000000-0000-4000-8000-000000000001",
+      "name": "Cuando me llaman",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        -620,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Contrato de entrada. Todo lo que quiera hablar con WhatsApp pasa por aquí.\n//   accion      : texto | imagen | documento | audio | video | marcar_leido\n//   cliente_id  : wa_id del destinatario (regla 3: nunca el teléfono formateado)\n//   texto       : cuerpo, o pie de foto si es media\n//   media_url   : URL pública del adjunto\n//   autor       : bot | humano | sistema   (queda registrado en mensajes)\n//   responder_a : wamid al que se responde (opcional)\n//   wa_message_id : solo para marcar_leido\n\nconst e = $json || {};\nconst accion = String(e.accion || 'texto').toLowerCase();\nconst ACCIONES = ['texto','imagen','documento','audio','video','marcar_leido'];\n\nconst fallos = [];\nif (!ACCIONES.includes(accion)) fallos.push('accion no reconocida: ' + accion);\nif (accion === 'marcar_leido') {\n  if (!e.wa_message_id) fallos.push('marcar_leido necesita wa_message_id');\n} else {\n  if (!e.cliente_id) fallos.push('falta cliente_id');\n  if (accion === 'texto' && !e.texto) fallos.push('un texto vacío no se envía');\n  if (accion !== 'texto' && !e.media_url) fallos.push('falta media_url para ' + accion);\n}\nif (!$env.WA_TOKEN) fallos.push('falta WA_TOKEN en el entorno de n8n');\n\n// Fallamos aquí, antes de gastar una llamada a Meta y antes de escribir nada.\nif (fallos.length) {\n  throw new Error('Petición inválida — ' + fallos.join(' · '));\n}\n\nreturn [{ json: {\n  accion,\n  cliente_id:    String(e.cliente_id || ''),\n  texto:         e.texto || '',\n  media_url:     e.media_url || null,\n  autor:         ['bot','humano','sistema'].includes(e.autor) ? e.autor : 'bot',\n  responder_a:   e.responder_a || null,\n  wa_message_id: e.wa_message_id || null,\n  nombre:        e.nombre || null,\n} }];"
+      },
+      "id": "c1000000-0000-4000-8000-000000000002",
+      "name": "Validar petición",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -400,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "a1",
+              "leftValue": "={{ $json.accion }}",
+              "rightValue": "marcar_leido",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c1000000-0000-4000-8000-000000000003",
+      "name": "¿Solo marcar como leído?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -180,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $env.WA_API_VERSION }}/{{ $env.WA_PHONE_NUMBER_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.WA_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ messaging_product: \"whatsapp\", status: \"read\", message_id: $json.wa_message_id }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput",
+      "id": "c1000000-0000-4000-8000-000000000004",
+      "name": "Marcar como leído",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        60,
+        60
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "c1000000-0000-4000-8000-000000000005",
+      "name": "Leído (no se registra)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        300,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/asegurar_conversacion",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_cliente_id: $json.cliente_id, p_nombre: $json.nombre, p_telefono: $json.cliente_id }) }}",
+        "options": {}
+      },
+      "id": "c1000000-0000-4000-8000-000000000006",
+      "name": "Asegurar conversación",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        60,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Traduce el contrato interno al cuerpo que espera la Cloud API.\nconst p = $('Validar petición').first().json;\n\nconst cuerpo = {\n  messaging_product: 'whatsapp',\n  recipient_type: 'individual',\n  to: p.cliente_id,\n};\n\nif (p.accion === 'texto') {\n  cuerpo.type = 'text';\n  cuerpo.text = { preview_url: false, body: p.texto };\n} else {\n  cuerpo.type = p.accion === \"imagen\" ? \"image\" : p.accion;\n  const adj = { link: p.media_url };\n  // audio y video no admiten caption en la Cloud API; image y document sí.\n  if (p.texto && ['image','document'].includes(cuerpo.type)) adj.caption = p.texto;\n  cuerpo[cuerpo.type] = adj;\n}\n\n// Responder en hilo, si nos lo han pedido.\nif (p.responder_a) cuerpo.context = { message_id: p.responder_a };\n\nreturn [{ json: { cuerpo, peticion: p } }];"
+      },
+      "id": "c1000000-0000-4000-8000-000000000007",
+      "name": "Construir mensaje Cloud API",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        300,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $env.WA_API_VERSION }}/{{ $env.WA_PHONE_NUMBER_ID }}/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.WA_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.cuerpo) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput",
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 2000,
+      "id": "c1000000-0000-4000-8000-000000000008",
+      "name": "ENVIAR A WHATSAPP (único punto de salida)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        540,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Se registra SIEMPRE, salga bien o mal (regla 1).\nconst p = $('Validar petición').first().json;\nconst r = $json || {};\n\nconst codigo = r.statusCode || 0;\nconst cuerpo = r.body || r;\n// Doble negacion: sin ella, && devuelve el array messages en vez de true.\nconst ok = !!(codigo >= 200 && codigo < 300 && cuerpo && cuerpo.messages);\n\nconst wamid = ok ? (cuerpo.messages[0] || {}).id : null;\nconst error = ok ? null : ((cuerpo && cuerpo.error) || { message: r.error || 'sin respuesta de Meta' });\n\nconst TIPO = { texto: \"text\", imagen: \"image\", documento: \"document\", audio: \"audio\", video: \"video\" };\n\nreturn [{ json: {\n  ok,\n  wamid,\n  error,\n  fila: {\n    cliente_id:   p.cliente_id,\n    canal:        'whatsapp_cloud',\n    direccion:    'out',\n    autor:        p.autor,\n    tipo:         TIPO[p.accion] || 'text',\n    texto:        p.texto || null,\n    media_url:    p.media_url,\n    estado:       ok ? 'enviado' : 'fallido',\n    msg_id_canal: wamid,\n    payload:      ok ? null : { error, enviado: $(\"Construir mensaje Cloud API\").first().json.cuerpo },\n  },\n} }];"
+      },
+      "id": "c1000000-0000-4000-8000-000000000009",
+      "name": "Preparar fila saliente",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        780,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/mensajes?on_conflict=canal,msg_id_canal",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=ignore-duplicates,return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.fila) }}",
+        "options": {}
+      },
+      "id": "c1000000-0000-4000-8000-000000000010",
+      "name": "Registrar salida",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1020,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f1",
+              "leftValue": "={{ $('Preparar fila saliente').first().json.ok ? 'si' : 'no' }}",
+              "rightValue": "no",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c1000000-0000-4000-8000-000000000011",
+      "name": "¿Falló el envío?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1260,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TG_INCIDENCIAS_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $env.TG_INCIDENCIAS_CHAT, text: \"⚠️ Fallo al enviar por WhatsApp\\ncliente: \" + $(\"Preparar fila saliente\").first().json.fila.cliente_id + \"\\nmotivo: \" + JSON.stringify($(\"Preparar fila saliente\").first().json.error).slice(0, 300) }) }}",
+        "options": {}
+      },
+      "onError": "continueRegularOutput",
+      "id": "c1000000-0000-4000-8000-000000000012",
+      "name": "Avisar incidencia por Telegram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1500,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Lo que ve quien nos llamó.\nconst r = $('Preparar fila saliente').first().json;\nreturn [{ json: { ok: r.ok, wamid: r.wamid, error: r.error } }];"
+      },
+      "id": "c1000000-0000-4000-8000-000000000013",
+      "name": "Devolver resultado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1740,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Punto único de salida a WhatsApp\n\nRegla 2: **este es el único sitio con el `WA_TOKEN`**. Nada más debe\nhablar con la Cloud API.\n\nSe llama con un nodo **Execute Workflow**, pasando:\n```\n{ accion: \"texto\",      cliente_id, texto, autor }\n{ accion: \"imagen\",     cliente_id, media_url, texto }\n{ accion: \"marcar_leido\", wa_message_id }\n```\n\nDevuelve `{ ok, wamid, error }`.\n\n**Toda salida queda en `mensajes`** con `direccion: out`, incluidas las\nque fallan (`estado: fallido` + el error en `payload`). Un envío perdido\nsin rastro es lo que hoy pasa con la rama de ficha del v3.",
+        "height": 460,
+        "width": 460,
+        "color": 3
+      },
+      "id": "c1000000-0000-4000-8000-000000000014",
+      "name": "Nota salida",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -620,
+        -320
+      ]
+    }
+  ],
+  "connections": {
+    "Cuando me llaman": {
+      "main": [
+        [
+          {
+            "node": "Validar petición",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar petición": {
+      "main": [
+        [
+          {
+            "node": "¿Solo marcar como leído?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Solo marcar como leído?": {
+      "main": [
+        [
+          {
+            "node": "Marcar como leído",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Asegurar conversación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar como leído": {
+      "main": [
+        [
+          {
+            "node": "Leído (no se registra)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Asegurar conversación": {
+      "main": [
+        [
+          {
+            "node": "Construir mensaje Cloud API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Construir mensaje Cloud API": {
+      "main": [
+        [
+          {
+            "node": "ENVIAR A WHATSAPP (único punto de salida)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ENVIAR A WHATSAPP (único punto de salida)": {
+      "main": [
+        [
+          {
+            "node": "Preparar fila saliente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar fila saliente": {
+      "main": [
+        [
+          {
+            "node": "Registrar salida",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar salida": {
+      "main": [
+        [
+          {
+            "node": "¿Falló el envío?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Falló el envío?": {
+      "main": [
+        [
+          {
+            "node": "Avisar incidencia por Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Devolver resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Avisar incidencia por Telegram": {
+      "main": [
+        [
+          {
+            "node": "Devolver resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

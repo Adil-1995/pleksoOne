@@ -1,0 +1,541 @@
+{
+  "name": "LumaBot Inbox — Webhook de envío",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "inbox-enviar",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "e5000000-0000-4000-8000-000000000001",
+      "name": "Petición del inbox",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -720,
+        0
+      ],
+      "webhookId": "e5000000-0000-4000-8000-000000000001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Se saca el token y se guarda el cuerpo para despues.\nconst cab = $json.headers || {};\nconst auth = String(cab.authorization || cab.Authorization || '');\nconst token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';\n\nreturn [{ json: {\n  token,\n  hay_cabecera: auth.length > 0,\n  body: $json.body || {},\n} }];"
+      },
+      "id": "e5000000-0000-4000-8000-000000000002",
+      "name": "Sacar el token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -500,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/auth/v1/user",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.token }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput",
+      "id": "e5000000-0000-4000-8000-000000000003",
+      "name": "Verificar sesión en Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -280,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Supabase es la autoridad. Comprobado empiricamente:\n//   token real           -> 200 + el usuario\n//   token inventado      -> 403\n//   sin token            -> 403\n//   exp manipulado       -> 403  (cambiar el payload rompe la firma)\n\nconst r = $json || {};\nconst codigo = r.statusCode || 0;\nlet cuerpo = r.body;\nif (typeof cuerpo === 'string') { try { cuerpo = JSON.parse(cuerpo); } catch (e) {} }\n\nconst previo = $('Sacar el token').first().json;\n\nlet valido = false;\nlet motivo = \"\";\n\nif (!previo.hay_cabecera) {\n  motivo = \"falta la cabecera Authorization\";\n} else if (!previo.token) {\n  motivo = \"la cabecera no es del tipo Bearer\";\n} else if (codigo !== 200) {\n  motivo = \"sesión no válida o caducada (Supabase devolvió \" + codigo + \")\";\n} else if (!cuerpo || !cuerpo.id) {\n  motivo = \"Supabase respondió 200 pero sin usuario\";\n} else if (cuerpo.role !== 'authenticated') {\n  motivo = \"el usuario no tiene rol authenticated\";\n} else {\n  valido = true;\n}\n\nreturn [{ json: {\n  veredicto: valido ? 'ok' : 'no',\n  motivo,\n  usuario_id: (cuerpo && cuerpo.id) || null,\n  usuario_email: (cuerpo && cuerpo.email) || null,\n  body: previo.body,\n} }];"
+      },
+      "id": "e5000000-0000-4000-8000-000000000004",
+      "name": "Comprobar sesión",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -60,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "v1",
+              "leftValue": "={{ $json.veredicto }}",
+              "rightValue": "ok",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e5000000-0000-4000-8000-000000000005",
+      "name": "¿Sesión válida?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        160,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: \"no autorizado\", motivo: $json.motivo }) }}",
+        "options": {
+          "responseCode": 401
+        }
+      },
+      "id": "e5000000-0000-4000-8000-000000000006",
+      "name": "Responder 401",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        400,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Ya sabemos QUIEN envia. Ahora se valida QUE envia.\nconst b = $json.body || {};\nconst MENSAJES = ['texto', 'imagen', 'documento', 'audio', 'video'];\nconst BLOQUEO  = ['bloquear', 'desbloquear'];\nconst ACCIONES = MENSAJES.concat(BLOQUEO);\n\nconst esBloqueo = BLOQUEO.includes(b.accion);\n\nconst fallos = [];\nif (!b.cliente_id) fallos.push('falta cliente_id');\nif (!ACCIONES.includes(b.accion)) fallos.push('accion no valida: ' + b.accion);\nif (b.accion === 'texto' && !b.texto) fallos.push('texto vacio');\nif (MENSAJES.includes(b.accion) && b.accion !== 'texto' && !b.media_url) fallos.push('falta media_url');\n\n// Limites de la Cloud API. El inbox ya avisa ANTES de subir, pero esto es\n// la red de seguridad: si algo se cuela, mejor un 400 nuestro que gastar\n// una llamada a Meta para que la rechace ella.\nconst LIMITES = { imagen: 5, video: 16, audio: 16, documento: 100 };\nconst mb = Number(b.tamano || 0) / 1048576;\nif (LIMITES[b.accion] && mb > LIMITES[b.accion]) {\n  fallos.push('el fichero pesa ' + mb.toFixed(1) + ' MB y el limite de ' +\n              b.accion + ' son ' + LIMITES[b.accion] + ' MB');\n}\n\nif (fallos.length) {\n  return [{ json: { error_peticion: fallos.join(' · ') } }];\n}\n\nreturn [{ json: {\n  accion: b.accion,\n  es_bloqueo: esBloqueo ? 'si' : 'no',\n  cliente_id: String(b.cliente_id),\n  texto: b.texto || '',\n  media_url: b.media_url || null,\n  // Nombre real del fichero: WhatsApp lo enseña como titulo del documento.\n  // Sin el, al cliente le llega un PDF llamado \"1787391234-algo.pdf\".\n  nombre_fichero: b.nombre_fichero || null,\n  tamano: b.tamano || null,\n  miniatura_url: b.miniatura_url || null,\n  // Siempre humano: lo que sale del inbox lo escribe una persona.\n  autor: 'humano',\n  enviado_por: $json.usuario_email,\n} }];"
+      },
+      "id": "e5000000-0000-4000-8000-000000000007",
+      "name": "Validar y traducir",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "p1",
+              "leftValue": "={{ $json.error_peticion }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notExists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e5000000-0000-4000-8000-000000000008",
+      "name": "¿Petición correcta?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        620,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error_peticion }) }}",
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "e5000000-0000-4000-8000-000000000009",
+      "name": "Responder 400",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        860,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "source": "database",
+        "workflowId": "CYgKApb26ARGlhVZ",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "e5000000-0000-4000-8000-000000000010",
+      "name": "Punto único de salida",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        860,
+        -180
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "e5000000-0000-4000-8000-000000000011",
+      "name": "Responder 200",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1080,
+        -180
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Webhook de envío del inbox\n\n**La URL es pública**: viaja al navegador en cada envío y la ve\ncualquiera que abra F12. La única defensa es esta verificación.\n\n### Cómo se valida\nSe le pregunta a Supabase con `GET /auth/v1/user`. Comprueba de una vez\nla **firma**, la **caducidad** y que el **usuario exista**.\n\nNo se verifica la firma aquí porque Supabase usa **ES256** (clave\nasimétrica), no un JWT secret HS256 — y n8n bloquea `crypto`, así que\nhabría que implementar ECDSA P-256 a mano.\n\n### Comprobado\n```\ntoken real       -> 200\ntoken inventado  -> 403\nsin token        -> 403\nexp manipulado   -> 403\n```\n\n### Respuestas\n`401` sin sesión válida · `400` petición mal formada · `200` enviado.",
+        "height": 520,
+        "width": 460,
+        "color": 6
+      },
+      "id": "e5000000-0000-4000-8000-000000000012",
+      "name": "Nota",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -720,
+        -640
+      ]
+    },
+    {
+      "name": "¿Es bloqueo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        640,
+        -180
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b1",
+              "leftValue": "={{ $json.es_bloqueo }}",
+              "rightValue": "si",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Bloquear en Meta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        860,
+        -400
+      ],
+      "parameters": {
+        "method": "={{ $json.accion === 'bloquear' ? 'POST' : 'DELETE' }}",
+        "url": "=https://graph.facebook.com/{{ $env.WA_API_VERSION }}/{{ $env.WA_PHONE_NUMBER_ID }}/block_users",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.WA_TOKEN }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ messaging_product: 'whatsapp', block_users: [{ user: $json.cliente_id }] }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "name": "Leer respuesta de bloqueo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1080,
+        -400
+      ],
+      "parameters": {
+        "jsCode": "const p = $('Validar y traducir').first().json;\nconst r = $json || {};\nconst codigo = r.statusCode || 0;\nlet cuerpo = r.body;\nif (typeof cuerpo === 'string') { try { cuerpo = JSON.parse(cuerpo); } catch (e) {} }\n\nconst quiere = p.accion === 'bloquear';\nconst bu = (cuerpo && cuerpo.block_users) || {};\n// Bloquear devuelve added_users; desbloquear, removed_users.\nconst hechos   = (quiere ? bu.added_users : bu.removed_users) || [];\nconst fallidos = bu.failed_users || [];\n\nconst ok = codigo >= 200 && codigo < 300 && hechos.length > 0;\n\nlet error = null;\nif (!ok) {\n  const e = fallidos[0] && fallidos[0].errors && fallidos[0].errors[0];\n  if (e && e.code === 131047) {\n    // El caso normal, y el unico que el equipo va a ver de verdad.\n    error = 'WhatsApp solo deja bloquear a quien te haya escrito en las ultimas 24 h. Este cliente lleva mas tiempo sin escribir.';\n  } else if (e && e.code === 139101) {\n    error = 'La lista de bloqueados esta llena (64.000). Hay que quitar a alguien antes.';\n  } else if (e) {\n    error = e.message + ((e.error_data && e.error_data.details) ? ': ' + e.error_data.details : '');\n  } else if (cuerpo && cuerpo.error) {\n    error = cuerpo.error.message || JSON.stringify(cuerpo.error).slice(0, 200);\n  } else {\n    error = 'Meta respondio ' + codigo;\n  }\n}\n\n// El PATCH solo toca `bloqueada` si Meta ha dicho que si. Si falla, se\n// guarda el motivo y la columna se queda como estaba: la base de datos\n// no puede decir \"bloqueada\" de alguien que sigue pudiendo escribirte.\nconst patch = ok\n  ? { bloqueada: quiere, bloqueada_en: quiere ? new Date().toISOString() : null, bloqueo_nota: null }\n  : { bloqueo_nota: error };\n\nreturn [{ json: { ok, error, cliente_id: p.cliente_id, patch } }];"
+      }
+    },
+    {
+      "name": "Guardar bloqueo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1300,
+        -400
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/conversaciones?cliente_id=eq.{{ $json.cliente_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.patch) }}",
+        "options": {}
+      }
+    },
+    {
+      "name": "Responder al bloqueo",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1520,
+        -400
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: $('Leer respuesta de bloqueo').first().json.ok, error: $('Leer respuesta de bloqueo').first().json.error }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Petición del inbox": {
+      "main": [
+        [
+          {
+            "node": "Sacar el token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sacar el token": {
+      "main": [
+        [
+          {
+            "node": "Verificar sesión en Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar sesión en Supabase": {
+      "main": [
+        [
+          {
+            "node": "Comprobar sesión",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Comprobar sesión": {
+      "main": [
+        [
+          {
+            "node": "¿Sesión válida?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Sesión válida?": {
+      "main": [
+        [
+          {
+            "node": "Validar y traducir",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder 401",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar y traducir": {
+      "main": [
+        [
+          {
+            "node": "¿Petición correcta?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Petición correcta?": {
+      "main": [
+        [
+          {
+            "node": "¿Es bloqueo?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder 400",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Punto único de salida": {
+      "main": [
+        [
+          {
+            "node": "Responder 200",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Es bloqueo?": {
+      "main": [
+        [
+          {
+            "node": "Bloquear en Meta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Punto único de salida",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bloquear en Meta": {
+      "main": [
+        [
+          {
+            "node": "Leer respuesta de bloqueo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer respuesta de bloqueo": {
+      "main": [
+        [
+          {
+            "node": "Guardar bloqueo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar bloqueo": {
+      "main": [
+        [
+          {
+            "node": "Responder al bloqueo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  }
+}

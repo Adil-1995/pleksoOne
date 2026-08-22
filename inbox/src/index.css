@@ -1,0 +1,126 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =====================================================================
+   PALETA
+   Todo el color de la app sale de aquí. Ni un hex suelto en los
+   componentes: cambiar de tema es cambiar estas variables y nada más.
+
+   Los valores van como TRIPLETES RGB sin envolver ("11 20 26") y no como
+   "#0b141a", porque tailwind.config los mete en rgb(var(--x) / <alpha>).
+   Así siguen funcionando las opacidades que ya usa la app: bg-acento/15,
+   text-texto2/60, etc. Con un hex, esas clases se rompen todas.
+
+   El tema se elige poniendo data-tema="claro|oscuro" en <html>. "Sistema"
+   no es un valor: se resuelve en lib/tema.ts y se escribe el que toque.
+   ===================================================================== */
+:root,
+[data-tema='oscuro'] {
+  --c-fondo:        11 20 26;
+  --c-panel:        17 27 33;
+  --c-panel2:       32 44 51;
+  --c-borde:        42 57 66;
+  --c-propio:        0 92 75;
+  --c-propio-texto: 233 237 239;
+  --c-ajeno:        32 44 51;
+  --c-acento:        0 168 132;
+  --c-texto:       233 237 239;
+  --c-texto2:      134 150 160;
+  --c-alerta:      241 92 109;
+  --c-aviso:       251 191 36;
+  --c-leido:        56 189 248;
+
+  /* Velo para lo que va DENTRO de una burbuja (documentos, transcripción).
+     En oscuro oscurece; en claro tiene que aclarar, o no se ve nada. */
+  --c-velo:          0 0 0;
+  --c-velo-alfa:     0.20;
+
+  --sombra-burbuja: 0 1px 1px rgb(0 0 0 / 0.16);
+  color-scheme: dark;
+}
+
+[data-tema='claro'] {
+  --c-fondo:       234 231 226;
+  --c-panel:       255 255 255;
+  --c-panel2:      241 242 245;
+  --c-borde:       220 222 226;
+  --c-propio:      217 253 211;   /* el verde claro de WhatsApp */
+  --c-propio-texto: 17 27 33;     /* sobre verde claro, texto OSCURO */
+  --c-ajeno:       255 255 255;
+  --c-acento:        0 138 108;   /* más oscuro que en dark: sobre blanco necesita contraste */
+  --c-texto:        17 27 33;
+  --c-texto2:      101 119 128;
+  --c-alerta:      200 40 55;
+  --c-aviso:       180 120 10;
+  --c-leido:         2 132 199;
+
+  --c-velo:          0 0 0;
+  --c-velo-alfa:     0.06;
+
+  --sombra-burbuja: 0 1px 1px rgb(0 0 0 / 0.10);
+  color-scheme: light;
+}
+
+@layer base {
+  html, body, #root { height: 100%; }
+  body {
+    /* Safe areas del iPhone: hace falta para Capacitor. */
+    padding: env(safe-area-inset-top) env(safe-area-inset-right)
+             env(safe-area-inset-bottom) env(safe-area-inset-left);
+    overscroll-behavior: none;
+    -webkit-tap-highlight-color: transparent;
+    background-color: rgb(var(--c-fondo));
+    color: rgb(var(--c-texto));
+  }
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-thumb {
+    background: rgb(var(--c-borde));
+    border-radius: 3px;
+  }
+}
+
+@layer components {
+  /* Fondo de papel pintado del hilo, como WhatsApp. */
+  .fondo-hilo {
+    background-color: rgb(var(--c-fondo));
+    background-image:
+      radial-gradient(circle at 20% 30%, rgb(var(--c-texto) / .025) 1px, transparent 1px),
+      radial-gradient(circle at 70% 60%, rgb(var(--c-texto) / .025) 1px, transparent 1px);
+    background-size: 40px 40px, 55px 55px;
+  }
+  .esqueleto { @apply bg-panel2 rounded animate-latido; }
+
+  /*
+    Acciones de una fila de la lista (fijar, favorito, comprado).
+
+    Calladas hasta que las buscas: en reposo la fila solo enseña lo que está
+    ENCENDIDO, y estas aparecen al pasar por encima o al llegar con el
+    teclado. Es lo que quita el ruido sin quitar la función.
+
+    En pantallas sin hover —el móvil, que es donde más se usa el inbox— se
+    quedan siempre visibles: ahí no hay forma de descubrirlas de otro modo, y
+    esconderlas sería quitarlas.
+  */
+  .acciones-fila {
+    opacity: 0;
+    transition: opacity .12s ease;
+  }
+  .group:hover .acciones-fila,
+  .group:focus-within .acciones-fila,
+  .acciones-fila:focus-within {
+    opacity: 1;
+  }
+  @media (hover: none) {
+    .acciones-fila { opacity: 1; }
+  }
+
+  /* Velo interno de las burbujas. Como el color base cambia con el tema, esto
+     no puede ser bg-black/20 a pelo: en claro dejaría una mancha gris. */
+  .velo {
+    background-color: rgb(var(--c-velo) / var(--c-velo-alfa));
+  }
+  .velo-hover:hover {
+    background-color: rgb(var(--c-velo) / calc(var(--c-velo-alfa) * 1.6));
+  }
+}

@@ -1,0 +1,421 @@
+{
+  "name": "LumaBot Cloud API — Fase 1 (recepción)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "wa-cloud",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000001",
+      "name": "Webhook verificación (GET)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -460,
+        -160
+      ],
+      "webhookId": "a1000000-0000-4000-8000-000000000001"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.query['hub.mode'] }}",
+              "rightValue": "subscribe",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "c2",
+              "leftValue": "={{ $json.query['hub.verify_token'] }}",
+              "rightValue": "={{ $env.WA_VERIFY_TOKEN }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000002",
+      "name": "¿Token de verificación correcto?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -200,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.query['hub.challenge'] }}",
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000003",
+      "name": "Devolver challenge",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        60,
+        -260
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "Verificacion rechazada",
+        "options": {
+          "responseCode": 403
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000004",
+      "name": "Rechazar verificación (403)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        60,
+        -60
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "wa-cloud",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000005",
+      "name": "Webhook mensajes (POST)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -460,
+        220
+      ],
+      "webhookId": "a1000000-0000-4000-8000-000000000005"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "EVENT_RECEIVED",
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000006",
+      "name": "Responder 200 a Meta",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        -200,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Valida X-Hub-Signature-256 ────────────────────────────────────────────\n// Meta firma el cuerpo CRUDO con HMAC-SHA256 usando el App Secret.\n// n8n bloquea el módulo 'crypto', así que va en JS puro (mismo núcleo\n// SHA-256 que ya usamos en \"Preparar evento Meta\" para el CAPI).\n//\n// Se valida sobre $binary.data (los bytes tal cual llegaron), NUNCA sobre\n// JSON.stringify($json.body): al reserializar, emojis y tildes cambian de\n// codificación y la firma dejaría de cuadrar en mensajes reales.\n\n// El secreto NO vive dentro del nodo: llega del entorno de n8n (fichero wa.env).\nconst APP_SECRET = $env.WA_APP_SECRET || '';\n\nfunction sha256Bytes(input){\n  function rotr(n,x){return (x>>>n)|(x<<(32-n));}\n  function ch(x,y,z){return (x&y)^(~x&z);}\n  function maj(x,y,z){return (x&y)^(x&z)^(y&z);}\n  function s0(x){return rotr(2,x)^rotr(13,x)^rotr(22,x);}\n  function s1(x){return rotr(6,x)^rotr(11,x)^rotr(25,x);}\n  function g0(x){return rotr(7,x)^rotr(18,x)^(x>>>3);}\n  function g1(x){return rotr(17,x)^rotr(19,x)^(x>>>10);}\n  const K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,\n  0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,\n  0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,\n  0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,\n  0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,\n  0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,\n  0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,\n  0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];\n  let H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];\n  const bytes=input.slice();\n  const bitLen=bytes.length*8;\n  bytes.push(0x80);\n  while(bytes.length%64!==56) bytes.push(0);\n  for(let i=7;i>=0;i--) bytes.push(Math.floor(bitLen/Math.pow(2,i*8))&0xff);\n  for(let b=0;b<bytes.length;b+=64){\n    const w=new Array(64);\n    for(let i=0;i<16;i++) w[i]=(bytes[b+i*4]<<24)|(bytes[b+i*4+1]<<16)|(bytes[b+i*4+2]<<8)|bytes[b+i*4+3];\n    for(let i=16;i<64;i++) w[i]=(g1(w[i-2])+w[i-7]+g0(w[i-15])+w[i-16])|0;\n    let a=H[0],bb=H[1],cc=H[2],dd=H[3],e=H[4],f=H[5],g=H[6],h=H[7];\n    for(let i=0;i<64;i++){\n      const t1=(h+s1(e)+ch(e,f,g)+K[i]+w[i])|0;\n      const t2=(s0(a)+maj(a,bb,cc))|0;\n      h=g;g=f;f=e;e=(dd+t1)|0;dd=cc;cc=bb;bb=a;a=(t1+t2)|0;\n    }\n    H=[(H[0]+a)|0,(H[1]+bb)|0,(H[2]+cc)|0,(H[3]+dd)|0,(H[4]+e)|0,(H[5]+f)|0,(H[6]+g)|0,(H[7]+h)|0];\n  }\n  return H.map(x=>((x>>>0).toString(16).padStart(8,'0'))).join('');\n}\nfunction utf8Bytes(s){const o=[];for(const c of unescape(encodeURIComponent(String(s)))) o.push(c.charCodeAt(0));return o;}\nfunction hexToBytes(h){const o=[];for(let i=0;i<h.length;i+=2) o.push(parseInt(h.substr(i,2),16));return o;}\nfunction b64ToBytes(str){\n  const T='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';\n  const s=String(str).replace(/[^A-Za-z0-9+/]/g,'');\n  const o=[];\n  for(let i=0;i<s.length;i+=4){\n    const c0=T.indexOf(s[i]), c1=T.indexOf(s[i+1]);\n    const c2=(i+2<s.length)?T.indexOf(s[i+2]):-1;\n    const c3=(i+3<s.length)?T.indexOf(s[i+3]):-1;\n    o.push(((c0<<2)|(c1>>4))&255);\n    if(c2>=0) o.push(((c1<<4)|(c2>>2))&255);\n    if(c3>=0) o.push(((c2<<6)|c3)&255);\n  }\n  return o;\n}\nfunction hmacSha256(keyBytes,msgBytes){\n  let k=keyBytes.slice();\n  if(k.length>64) k=hexToBytes(sha256Bytes(k));\n  while(k.length<64) k.push(0);\n  const ip=[],op=[];\n  for(let i=0;i<64;i++){ip.push(k[i]^0x36);op.push(k[i]^0x5c);}\n  const inner=hexToBytes(sha256Bytes(ip.concat(msgBytes)));\n  return sha256Bytes(op.concat(inner));\n}\n\nconst item = $input.first();\nconst cabecera = String((item.json.headers || {})['x-hub-signature-256'] || '');\nconst crudoB64 = (item.binary && item.binary.data) ? item.binary.data.data : null;\n\nfunction fallo(motivo){\n  return [{ json: { firma_ok: false, motivo, body: item.json.body || {} } }];\n}\n\nif (!APP_SECRET) return fallo('falta WA_APP_SECRET en el entorno de n8n');\nif (!crudoB64) return fallo('no llegó el cuerpo crudo: activa \"Raw Body\" en el nodo Webhook');\nif (!cabecera.startsWith('sha256=')) return fallo('falta la cabecera x-hub-signature-256');\n\nconst esperado = hmacSha256(utf8Bytes(APP_SECRET), b64ToBytes(crudoB64));\nconst recibido = cabecera.slice(7).toLowerCase();\n\n// Comparación en tiempo constante: no filtra información por lo que tarda.\nlet dif = esperado.length ^ recibido.length;\nfor (let i = 0; i < esperado.length && i < recibido.length; i++) {\n  dif |= esperado.charCodeAt(i) ^ recibido.charCodeAt(i);\n}\n\nreturn [{ json: {\n  firma_ok: dif === 0,\n  motivo: dif === 0 ? 'ok' : 'la firma no coincide con el App Secret',\n  body: item.json.body || {}\n} }];\n"
+      },
+      "id": "a1000000-0000-4000-8000-000000000007",
+      "name": "Validar firma",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -200,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f1",
+              "leftValue": "={{ $json.firma_ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000008",
+      "name": "¿Firma válida?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        60,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Normaliza el evento de WhatsApp Cloud API ─────────────────────────────\n// Un solo POST puede traer VARIOS mensajes y varios cambios de estado a la\n// vez. Aquí se aplana a un item por evento, con nombres de campo estables\n// que no dependen del proveedor: si mañana cambia el canal, el resto del\n// flujo no se entera.\n//\n// Regla 3 del CLAUDE.md: la identidad es cliente_id (= wa_id), nunca el\n//   teléfono formateado ni el LID.\n// Regla 4: campo canal en todo, para convivir con Evolution durante la\n//   migración.\n\n// Nuestro número sale del entorno, no está escrito en el nodo.\nconst NUESTRO_NUMERO = $env.WA_PHONE_NUMBER_ID || '';\n\nconst body = $json.body || {};\nconst salida = [];\n\nfor (const entry of (body.entry || [])) {\n  for (const cambio of (entry.changes || [])) {\n    const v = cambio.value || {};\n    const meta = v.metadata || {};\n\n    // Una misma app puede tener varios números colgando de la WABA.\n    // Marcamos si el evento es del nuestro para poder descartar ruido\n    // sin perder el registro (regla 1: guardar siempre).\n    const numeroPropio = !NUESTRO_NUMERO || meta.phone_number_id === NUESTRO_NUMERO;\n\n    // Los nombres de perfil llegan aparte, en contacts[], no dentro del mensaje.\n    const perfiles = {};\n    for (const c of (v.contacts || [])) {\n      perfiles[c.wa_id] = (c.profile || {}).name || '';\n    }\n\n    for (const m of (v.messages || [])) {\n      const adjunto = m[m.type] || {};\n      const ref = m.referral || {};\n      salida.push({ json: {\n        canal:           'whatsapp_cloud',\n        tipo_evento:     'mensaje',\n        direccion:       'entrante',\n        cliente_id:      m.from,\n        wa_message_id:   m.id,\n        nombre_wa:       perfiles[m.from] || '',\n        tipo:            m.type,\n        texto:           m.text ? m.text.body : (adjunto.caption || ''),\n        media_id:        adjunto.id || null,\n        media_mime:      adjunto.mime_type || null,\n        respuesta_a:     (m.context || {}).id || null,\n        timestamp:       new Date(Number(m.timestamp) * 1000).toISOString(),\n        phone_number_id: meta.phone_number_id || '',\n        display_phone:   meta.display_phone_number || '',\n        numero_propio:   numeroPropio,\n        // Atribución de anuncios click-to-WhatsApp: esto alimenta el CAPI.\n        // Solo viene en el PRIMER mensaje. Si se pierde aquí, se pierde\n        // para siempre y el pedido queda sin atribuir.\n        ctwa_clid:       ref.ctwa_clid || '',\n        ad_id:           ref.source_id || '',\n        ad_titulo:       ref.headline || '',\n        crudo:           m\n      }});\n    }\n\n    for (const s of (v.statuses || [])) {\n      salida.push({ json: {\n        canal:           'whatsapp_cloud',\n        tipo_evento:     'estado',\n        direccion:       'saliente',\n        cliente_id:      s.recipient_id,\n        wa_message_id:   s.id,\n        estado:          s.status,\n        timestamp:       new Date(Number(s.timestamp) * 1000).toISOString(),\n        phone_number_id: meta.phone_number_id || '',\n        numero_propio:   numeroPropio,\n        crudo:           s\n      }});\n    }\n\n    for (const e of (v.errors || [])) {\n      salida.push({ json: {\n        canal:       'whatsapp_cloud',\n        tipo_evento: 'error',\n        codigo:      e.code,\n        mensaje:     e.title || e.message || '',\n        crudo:       e\n      }});\n    }\n  }\n}\n\n// Nunca devolvemos vacío: un evento sin reconocer también es información\n// y queremos verlo en el historial de ejecuciones.\nif (!salida.length) {\n  return [{ json: { canal: 'whatsapp_cloud', tipo_evento: 'sin_reconocer', crudo: body } }];\n}\nreturn salida;\n"
+      },
+      "id": "a1000000-0000-4000-8000-000000000009",
+      "name": "Normalizar evento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        320,
+        220
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "a1000000-0000-4000-8000-00000000000a",
+      "name": "Descartar: no autorizado",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        320,
+        440
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "a1000000-0000-4000-8000-00000000000b",
+      "name": "1. GUARDAR SIEMPRE ← Fase 2",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        580,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "m1",
+              "leftValue": "={{ $json.tipo_evento }}",
+              "rightValue": "mensaje",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-00000000000c",
+      "name": "¿Es mensaje entrante?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        840,
+        220
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "a1000000-0000-4000-8000-00000000000d",
+      "name": "2. Procesar mensaje ← Fase 3",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        120
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "a1000000-0000-4000-8000-00000000000e",
+      "name": "Solo registrar (estado / error)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1100,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 1 · Verificación (GET)\n\nMeta llama una vez con `hub.mode`, `hub.verify_token` y\n`hub.challenge`. Se devuelve el challenge en **texto plano**.\n\nEl token NO está escrito aquí: sale de `$env.WA_VERIFY_TOKEN`,\ndefinido en `/opt/bot/wa.env`.\n\nURL registrada en Meta:\n```\nhttps://plekso.duckdns.org/webhook/wa-cloud\n```",
+        "height": 420,
+        "width": 420,
+        "color": 4
+      },
+      "id": "a1000000-0000-4000-8000-00000000000f",
+      "name": "Nota verificación",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -900,
+        -320
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 2 · Recepción (POST)\n\n**Variables de entorno** (`/opt/bot/wa.env`, montado con `env_file`):\n- `WA_VERIFY_TOKEN` — reto de verificación\n- `WA_APP_SECRET` — firma HMAC de cada POST\n- `WA_PHONE_NUMBER_ID` — nuestro número\n- `WA_WABA_ID`, `WA_TOKEN`, `WA_API_VERSION` — para el envío (Fase 3)\n\nRequiere `N8N_BLOCK_ENV_ACCESS_IN_NODE=false`: n8n 2.0 bloquea\n`$env` en los nodos por defecto.\n\n**Por qué está montado así:**\n- Se responde 200 a Meta *antes* de procesar, o Meta reintenta y\n  acaba desactivando el webhook.\n- La firma se valida sobre el cuerpo **crudo** (`Raw Body`): al\n  reserializar, emojis y tildes rompen la firma.\n- `GUARDAR SIEMPRE` va antes de cualquier decisión (regla 1).",
+        "height": 460,
+        "width": 420,
+        "color": 5
+      },
+      "id": "a1000000-0000-4000-8000-000000000010",
+      "name": "Nota mensajes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -900,
+        180
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook verificación (GET)": {
+      "main": [
+        [
+          {
+            "node": "¿Token de verificación correcto?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Token de verificación correcto?": {
+      "main": [
+        [
+          {
+            "node": "Devolver challenge",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rechazar verificación (403)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook mensajes (POST)": {
+      "main": [
+        [
+          {
+            "node": "Responder 200 a Meta",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Validar firma",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar firma": {
+      "main": [
+        [
+          {
+            "node": "¿Firma válida?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Firma válida?": {
+      "main": [
+        [
+          {
+            "node": "Normalizar evento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Descartar: no autorizado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar evento": {
+      "main": [
+        [
+          {
+            "node": "1. GUARDAR SIEMPRE ← Fase 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "1. GUARDAR SIEMPRE ← Fase 2": {
+      "main": [
+        [
+          {
+            "node": "¿Es mensaje entrante?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Es mensaje entrante?": {
+      "main": [
+        [
+          {
+            "node": "2. Procesar mensaje ← Fase 3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Solo registrar (estado / error)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

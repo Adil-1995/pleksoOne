@@ -1,0 +1,4526 @@
+{
+  "name": "LumaBot Cloud API — Fase 7 MULTICANAL (copia, desactivada)",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "wa-cloud-multi",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "5381e447-122b-46ea-83f9-972a271f8218",
+      "name": "Webhook verificación (GET)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        448,
+        160
+      ],
+      "webhookId": "ec2904a8-1dce-4fb4-b269-61d218909331"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.query['hub.mode'] }}",
+              "rightValue": "subscribe",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            },
+            {
+              "id": "c2",
+              "leftValue": "={{ $json.query['hub.verify_token'] }}",
+              "rightValue": "={{ $env.WA_VERIFY_TOKEN }}",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "2cae312c-8c50-43e2-a611-49e142ea4e17",
+      "name": "¿Token de verificación correcto?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        704,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.query['hub.challenge'] }}",
+        "options": {}
+      },
+      "id": "f3818009-308d-48ca-8e3d-e274faa751c4",
+      "name": "Devolver challenge",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        64
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "Verificacion rechazada",
+        "options": {
+          "responseCode": 403
+        }
+      },
+      "id": "ce54ff62-eeb3-4de6-b066-291db580b7f3",
+      "name": "Rechazar verificación (403)",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        960,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "wa-cloud-multi",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": true
+        }
+      },
+      "id": "0ccd7198-fa4d-4469-bd85-8efaecc051bf",
+      "name": "Webhook mensajes (POST)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        448,
+        544
+      ],
+      "webhookId": "3814899d-0099-436d-b99b-4f05fbb2c646"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "EVENT_RECEIVED",
+        "options": {}
+      },
+      "id": "37dea162-7ef3-4213-b9c3-18ecd0408f37",
+      "name": "Responder 200 a Meta",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        704,
+        432
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Valida X-Hub-Signature-256 ────────────────────────────────────────────\n// Meta firma el cuerpo CRUDO con HMAC-SHA256 usando el App Secret.\n// n8n bloquea el módulo 'crypto', así que va en JS puro (mismo núcleo\n// SHA-256 que ya usamos en \"Preparar evento Meta\" para el CAPI).\n//\n// Se valida sobre $binary.data (los bytes tal cual llegaron), NUNCA sobre\n// JSON.stringify($json.body): al reserializar, emojis y tildes cambian de\n// codificación y la firma dejaría de cuadrar en mensajes reales.\n\n// El secreto NO vive dentro del nodo: llega del entorno de n8n (fichero wa.env).\nconst APP_SECRET = $env.WA_APP_SECRET || '';\n\nfunction sha256Bytes(input){\n  function rotr(n,x){return (x>>>n)|(x<<(32-n));}\n  function ch(x,y,z){return (x&y)^(~x&z);}\n  function maj(x,y,z){return (x&y)^(x&z)^(y&z);}\n  function s0(x){return rotr(2,x)^rotr(13,x)^rotr(22,x);}\n  function s1(x){return rotr(6,x)^rotr(11,x)^rotr(25,x);}\n  function g0(x){return rotr(7,x)^rotr(18,x)^(x>>>3);}\n  function g1(x){return rotr(17,x)^rotr(19,x)^(x>>>10);}\n  const K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,\n  0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,\n  0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,\n  0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,\n  0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,\n  0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,\n  0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,\n  0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];\n  let H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];\n  const bytes=input.slice();\n  const bitLen=bytes.length*8;\n  bytes.push(0x80);\n  while(bytes.length%64!==56) bytes.push(0);\n  for(let i=7;i>=0;i--) bytes.push(Math.floor(bitLen/Math.pow(2,i*8))&0xff);\n  for(let b=0;b<bytes.length;b+=64){\n    const w=new Array(64);\n    for(let i=0;i<16;i++) w[i]=(bytes[b+i*4]<<24)|(bytes[b+i*4+1]<<16)|(bytes[b+i*4+2]<<8)|bytes[b+i*4+3];\n    for(let i=16;i<64;i++) w[i]=(g1(w[i-2])+w[i-7]+g0(w[i-15])+w[i-16])|0;\n    let a=H[0],bb=H[1],cc=H[2],dd=H[3],e=H[4],f=H[5],g=H[6],h=H[7];\n    for(let i=0;i<64;i++){\n      const t1=(h+s1(e)+ch(e,f,g)+K[i]+w[i])|0;\n      const t2=(s0(a)+maj(a,bb,cc))|0;\n      h=g;g=f;f=e;e=(dd+t1)|0;dd=cc;cc=bb;bb=a;a=(t1+t2)|0;\n    }\n    H=[(H[0]+a)|0,(H[1]+bb)|0,(H[2]+cc)|0,(H[3]+dd)|0,(H[4]+e)|0,(H[5]+f)|0,(H[6]+g)|0,(H[7]+h)|0];\n  }\n  return H.map(x=>((x>>>0).toString(16).padStart(8,'0'))).join('');\n}\nfunction utf8Bytes(s){const o=[];for(const c of unescape(encodeURIComponent(String(s)))) o.push(c.charCodeAt(0));return o;}\nfunction hexToBytes(h){const o=[];for(let i=0;i<h.length;i+=2) o.push(parseInt(h.substr(i,2),16));return o;}\nfunction b64ToBytes(str){\n  const T='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';\n  const s=String(str).replace(/[^A-Za-z0-9+/]/g,'');\n  const o=[];\n  for(let i=0;i<s.length;i+=4){\n    const c0=T.indexOf(s[i]), c1=T.indexOf(s[i+1]);\n    const c2=(i+2<s.length)?T.indexOf(s[i+2]):-1;\n    const c3=(i+3<s.length)?T.indexOf(s[i+3]):-1;\n    o.push(((c0<<2)|(c1>>4))&255);\n    if(c2>=0) o.push(((c1<<4)|(c2>>2))&255);\n    if(c3>=0) o.push(((c2<<6)|c3)&255);\n  }\n  return o;\n}\nfunction hmacSha256(keyBytes,msgBytes){\n  let k=keyBytes.slice();\n  if(k.length>64) k=hexToBytes(sha256Bytes(k));\n  while(k.length<64) k.push(0);\n  const ip=[],op=[];\n  for(let i=0;i<64;i++){ip.push(k[i]^0x36);op.push(k[i]^0x5c);}\n  const inner=hexToBytes(sha256Bytes(ip.concat(msgBytes)));\n  return sha256Bytes(op.concat(inner));\n}\n\nconst item = $input.first();\nconst cabecera = String((item.json.headers || {})['x-hub-signature-256'] || '');\nconst crudoB64 = (item.binary && item.binary.data) ? item.binary.data.data : null;\n\nfunction fallo(motivo){\n  return [{ json: { firma_ok: false, motivo, body: item.json.body || {} } }];\n}\n\nif (!APP_SECRET) return fallo('falta WA_APP_SECRET en el entorno de n8n');\nif (!crudoB64) return fallo('no llegó el cuerpo crudo: activa \"Raw Body\" en el nodo Webhook');\nif (!cabecera.startsWith('sha256=')) return fallo('falta la cabecera x-hub-signature-256');\n\nconst esperado = hmacSha256(utf8Bytes(APP_SECRET), b64ToBytes(crudoB64));\nconst recibido = cabecera.slice(7).toLowerCase();\n\n// Comparación en tiempo constante: no filtra información por lo que tarda.\nlet dif = esperado.length ^ recibido.length;\nfor (let i = 0; i < esperado.length && i < recibido.length; i++) {\n  dif |= esperado.charCodeAt(i) ^ recibido.charCodeAt(i);\n}\n\nreturn [{ json: {\n  firma_ok: dif === 0,\n  motivo: dif === 0 ? 'ok' : 'la firma no coincide con el App Secret',\n  body: item.json.body || {}\n} }];\n"
+      },
+      "id": "c1832b7d-4d84-43bb-85ac-622831de3446",
+      "name": "Validar firma",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        704,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f1",
+              "leftValue": "={{ $json.firma_ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "39dafa86-186a-45ae-91c7-eec0defe4bc1",
+      "name": "¿Firma válida?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── Normaliza el evento de WhatsApp Cloud API ─────────────────────────────\n// Un solo POST puede traer VARIOS mensajes y varios cambios de estado a la\n// vez. Aquí se aplana a un item por evento, con nombres de campo estables\n// que no dependen del proveedor: si mañana cambia el canal, el resto del\n// flujo no se entera.\n//\n// Regla 3 del CLAUDE.md: la identidad es cliente_id (= wa_id), nunca el\n//   teléfono formateado ni el LID.\n// Regla 4: campo canal en todo, para convivir con Evolution durante la\n//   migración.\n\n// Nuestro número sale del entorno, no está escrito en el nodo.\n// numero_propio ya NO se calcula aqui. Aqui todavia no sabemos que\n// numeros son nuestros: compararlo con $env.WA_PHONE_NUMBER_ID daba\n// false para TODO mensaje del canal 2. Se resuelve en 'Resolver canal',\n// que es quien mira la tabla `canales`.\n\nconst body = $json.body || {};\nconst salida = [];\n\nfor (const entry of (body.entry || [])) {\n  for (const cambio of (entry.changes || [])) {\n    const v = cambio.value || {};\n    const meta = v.metadata || {};\n\n    // Una misma app puede tener varios números colgando de la WABA.\n    // Marcamos si el evento es del nuestro para poder descartar ruido\n    // sin perder el registro (regla 1: guardar siempre).\n    const numeroPropio = null;   // lo rellena 'Resolver canal'\n\n    // Los nombres de perfil llegan aparte, en contacts[], no dentro del mensaje.\n    const perfiles = {};\n    for (const c of (v.contacts || [])) {\n      perfiles[c.wa_id] = (c.profile || {}).name || '';\n    }\n\n    for (const m of (v.messages || [])) {\n      const adjunto = m[m.type] || {};\n      const ref = m.referral || {};\n      salida.push({ json: {\n        canal:           'whatsapp_cloud',\n        tipo_evento:     'mensaje',\n        direccion:       'entrante',\n        cliente_id:      m.from,\n        wa_message_id:   m.id,\n        nombre_wa:       perfiles[m.from] || '',\n        tipo:            m.type,\n        texto:           m.text ? m.text.body : (adjunto.caption || ''),\n        media_id:        adjunto.id || null,\n        media_mime:      adjunto.mime_type || null,\n        // Solo lo traen los documentos. Sin esto el inbox enseña el\n        // media_id como nombre de fichero.\n        nombre_fichero:  adjunto.filename || null,\n        respuesta_a:     (m.context || {}).id || null,\n        timestamp:       new Date(Number(m.timestamp) * 1000).toISOString(),\n        phone_number_id: meta.phone_number_id || '',\n        display_phone:   meta.display_phone_number || '',\n        numero_propio:   numeroPropio,\n        // Atribución de anuncios click-to-WhatsApp: esto alimenta el CAPI.\n        // Solo viene en el PRIMER mensaje. Si se pierde aquí, se pierde\n        // para siempre y el pedido queda sin atribuir.\n        ctwa_clid:       ref.ctwa_clid || '',\n        ad_id:           ref.source_id || '',\n        ad_titulo:       ref.headline || '',\n        crudo:           m\n      }});\n    }\n\n    for (const s of (v.statuses || [])) {\n      salida.push({ json: {\n        canal:           'whatsapp_cloud',\n        tipo_evento:     'estado',\n        direccion:       'saliente',\n        cliente_id:      s.recipient_id,\n        wa_message_id:   s.id,\n        estado:          s.status,\n        timestamp:       new Date(Number(s.timestamp) * 1000).toISOString(),\n        phone_number_id: meta.phone_number_id || '',\n        numero_propio:   numeroPropio,\n        crudo:           s\n      }});\n    }\n\n    for (const e of (v.errors || [])) {\n      salida.push({ json: {\n        canal:       'whatsapp_cloud',\n        tipo_evento: 'error',\n        codigo:      e.code,\n        mensaje:     e.title || e.message || '',\n        crudo:       e\n      }});\n    }\n  }\n}\n\n// Nunca devolvemos vacío: un evento sin reconocer también es información\n// y queremos verlo en el historial de ejecuciones.\nif (!salida.length) {\n  return [{ json: { canal: 'whatsapp_cloud', tipo_evento: 'sin_reconocer', crudo: body } }];\n}\nreturn salida;\n"
+      },
+      "id": "03db6881-e780-4af0-b9dd-1accf4952914",
+      "name": "Normalizar evento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1232,
+        544
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "5bec5628-8ba8-422d-97ab-59c7a120f9d2",
+      "name": "Descartar: no autorizado",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1232,
+        768
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 1 · Verificación (GET)\n\nMeta llama una vez con `hub.mode`, `hub.verify_token` y\n`hub.challenge`. Se devuelve el challenge en **texto plano**.\n\nEl token NO está escrito aquí: sale de `$env.WA_VERIFY_TOKEN`,\ndefinido en `/opt/bot/wa.env`.\n\nURL registrada en Meta:\n```\nhttps://plekso.duckdns.org/webhook/wa-cloud\n```",
+        "height": 420,
+        "width": 420,
+        "color": 4
+      },
+      "id": "8acdac9a-616e-4139-8414-d3db9249cc1a",
+      "name": "Nota verificación",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## 2 · Recepción (POST)\n\n**Variables de entorno** (`/opt/bot/wa.env`, montado con `env_file`):\n- `WA_VERIFY_TOKEN` — reto de verificación\n- `WA_APP_SECRET` — firma HMAC de cada POST\n- `WA_PHONE_NUMBER_ID` — nuestro número\n- `WA_WABA_ID`, `WA_TOKEN`, `WA_API_VERSION` — para el envío (Fase 3)\n\nRequiere `N8N_BLOCK_ENV_ACCESS_IN_NODE=false`: n8n 2.0 bloquea\n`$env` en los nodos por defecto.\n\n**Por qué está montado así:**\n- Se responde 200 a Meta *antes* de procesar, o Meta reintenta y\n  acaba desactivando el webhook.\n- La firma se valida sobre el cuerpo **crudo** (`Raw Body`): al\n  reserializar, emojis y tildes rompen la firma.\n- `GUARDAR SIEMPRE` va antes de cualquier decisión (regla 1).",
+        "height": 460,
+        "width": 420,
+        "color": 5
+      },
+      "id": "7af7c859-4351-4a0e-9ae0-525153b1278b",
+      "name": "Nota mensajes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "s1",
+                    "leftValue": "={{ $json.tipo_evento }}",
+                    "rightValue": "mensaje",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "mensaje"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "s2",
+                    "leftValue": "={{ $json.tipo_evento }}",
+                    "rightValue": "estado",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "estado"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra",
+          "renameFallbackOutput": "otro"
+        }
+      },
+      "id": "268912be-37e5-4cb4-8fc9-55d1fc7ef3e3",
+      "name": "¿Qué tipo de evento?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        1488,
+        544
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/asegurar_conversacion",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_cliente_id: $json.cliente_id, p_nombre: $json.nombre_wa || null, p_telefono: $json.cliente_id, p_canal_id: $json.canal_id }) }}",
+        "options": {}
+      },
+      "id": "00bbf7ca-73ff-400c-908f-31c44e47ae1e",
+      "name": "Asegurar conversación",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1744,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Fila para la tabla mensajes.\n// Los valores de estado/direccion/autor/tipo estan limitados por CHECK\n// constraints; estos son los que el esquema acepta (comprobado contra la\n// tabla real, no de memoria):\n//   estado    : enviado | entregado | leido | pendiente   (NO existe 'recibido')\n//   direccion : in | out\n//   autor     : cliente | bot | humano | sistema\n\nconst ev = $('Normalizar evento').item.json;\n\nreturn [{ json: {\n  cliente_id:   ev.cliente_id,          // wa_id: la identidad (regla 3)\n  canal:        'whatsapp_cloud',       // regla 4\n  direccion:    'in',\n  autor:        'cliente',\n  tipo:         ev.tipo,\n  texto:        ev.texto || null,\n  estado:       'entregado',   // nos ha llegado\n  msg_id_canal: ev.wa_message_id,\n  payload:      ev.crudo || null,\n  creado:       ev.timestamp,\n} }];"
+      },
+      "id": "8d8ef3b4-90c7-4436-a914-bb5f7d954b8b",
+      "name": "Preparar fila del mensaje",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1984,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/mensajes?on_conflict=canal,msg_id_canal",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=ignore-duplicates,return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "010bc0d9-ac25-4113-9a46-78923eec6034",
+      "name": "Guardar mensaje entrante",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2224,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Meta manda sent/delivered/read/failed. El CHECK de la tabla solo\n// admite enviado|entregado|leido|pendiente: 'failed' NO tiene destino.\n// En vez de tragarnoslo, lo marcamos y se ve en el flujo.\nconst MAPA = { sent: 'enviado', delivered: 'entregado', read: 'leido' };\nconst ev = $json;\nconst equivalente = MAPA[ev.estado] || null;\nreturn [{ json: {\n  wa_message_id: ev.wa_message_id,\n  estado_meta:   ev.estado,\n  estado_supabase: equivalente,\n  mapeable:      equivalente !== null,\n} }];"
+      },
+      "id": "3edf3001-6f94-4f20-b479-67eec217ee74",
+      "name": "Traducir estado de Meta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1744,
+        672
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "e1",
+              "leftValue": "={{ $json.mapeable }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "76effbb4-c621-4a5b-96d5-a56acd0775a6",
+      "name": "¿Tiene equivalente?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1984,
+        672
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/mensajes?canal=eq.whatsapp_cloud&msg_id_canal=eq.{{ $json.wa_message_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ estado: $json.estado_supabase }) }}",
+        "options": {}
+      },
+      "id": "f223cecd-865c-4508-9125-4c4f8282c3f6",
+      "name": "Actualizar estado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2224,
+        624
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "8be9d57a-33ae-4c37-a649-0b9c6017dcd9",
+      "name": "Sin equivalente (falta 'fallido' en el CHECK)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2224,
+        752
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "eedbb7fb-5ee1-4ab7-9be3-5a79fde9b287",
+      "name": "Evento sin reconocer",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1744,
+        864
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// El insert de PostgREST puede devolver un array o un objeto segun el\n// Prefer que lleve. Normalizamos aqui para no depender de eso, y caemos\n// al evento normalizado si la respuesta no trae lo que esperamos.\nconst ev = $('Normalizar evento').first().json;\nlet fila = null;\ntry {\n  const r = $('Guardar mensaje entrante').first().json;\n  fila = Array.isArray(r) ? r[0] : r;\n} catch (e) {}\n\n// Si el mensaje era un audio y Whisper lo entendio, ESE es el texto que\n// ve Maria: entra al buffer y al AI Agent como si lo hubiera escrito.\n// El pie de foto (ev.texto) sigue valiendo para imagenes y videos.\nlet texto = ev.texto || '';\ntry {\n  const a = $('AUDIO decidir').first().json;\n  if (a && a.via === 'normal' && a.texto) texto = a.texto;\n} catch (e) {}\n\nreturn [{ json: {\n  cliente_id:    (fila && fila.cliente_id)   || ev.cliente_id,\n  wa_message_id: (fila && fila.msg_id_canal) || ev.wa_message_id,\n  texto,\n  nombre_wa:     ev.nombre_wa,\n  ctwa_clid:     ev.ctwa_clid,\n  ad_id:         ev.ad_id,\n} }];"
+      },
+      "id": "e1000000-0000-4000-8000-000000000001",
+      "name": "Datos del mensaje guardado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1568,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/conversaciones?cliente_id=eq.{{ $json.cliente_id }}&select=*",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "e1000000-0000-4000-8000-000000000002",
+      "name": "Leer estado de la conversación",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1808,
+        128
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Convierte la respuesta del GET en un booleano que el IF no pueda\n// malinterpretar, y deja escrito POR QUE vale lo que vale.\nconst r = $json || {};\nconst codigo = r.statusCode || 0;\n\n// Si el Content-Type no fuera application/json, n8n deja el cuerpo como\n// cadena. Lo parseamos por si acaso en vez de fallar en silencio.\nlet cuerpo = r.body;\nif (typeof cuerpo === 'string') { try { cuerpo = JSON.parse(cuerpo); } catch (e) {} }\n\nlet bot_activo, motivo, fila = null;\n\nif (codigo < 200 || codigo >= 300) {\n  // Supabase no contesto bien. Seguimos atendiendo, pero queda por escrito.\n  bot_activo = true;\n  motivo = 'no se pudo leer el estado (http ' + codigo + '), por defecto atiende el bot';\n} else if (!Array.isArray(cuerpo)) {\n  bot_activo = true;\n  motivo = 'respuesta inesperada (' + (typeof cuerpo) + '), por defecto atiende el bot';\n} else if (cuerpo.length === 0) {\n  // Cliente nuevo: nunca estuvo pausado. true es la respuesta correcta,\n  // no un valor por defecto.\n  bot_activo = true;\n  motivo = 'cliente nuevo, sin fila en conversaciones';\n} else if (cuerpo.length > 1) {\n  // Imposible mientras exista el UNIQUE conversaciones_cliente_id_key,\n  // pero si alguien lo quita NO queremos despertar a un cliente pausado.\n  bot_activo = false;\n  motivo = 'identidad duplicada: ' + cuerpo.length + ' filas para este cliente_id, no respondo';\n} else {\n  fila = cuerpo[0];\n  if ($('Resolver canal').first().json.canal_desconocido === 'si') {\n    // Numero sin dar de alta: guardado si, respuesta no. Contestar por\n    // un canal que no conocemos es lo unico peor que no contestar.\n    bot_activo = false;\n    motivo = 'el numero que recibio el mensaje no esta en `canales`';\n  } else if ($('Resolver canal').first().json.canal_activo === false) {\n    // Canal desactivado desde el inbox: se sigue guardando y viendo,\n    // pero no se envia. Es lo que significa desactivar.\n    bot_activo = false;\n    motivo = 'canal desactivado';\n  } else if ($('Resolver canal').first().json.canal_bot_activo === false) {\n    // Maria pausada en ESTE numero desde el inbox. El canal sigue en\n    // servicio: entra, se guarda, se ve y un humano puede contestar.\n    bot_activo = false;\n    motivo = 'Maria pausada en este canal';\n  } else if (fila.bloqueada === true) {\n    // Bloqueada en Meta. Si aun llega algo es que el bloqueo todavia no\n    // ha surtido efecto: se guarda, pero contestar seria absurdo.\n    bot_activo = false;\n    motivo = 'cliente bloqueado en WhatsApp';\n  } else if (fila.silenciada === true) {\n    // Silenciada: entra, se guarda, y hasta ahi. Ni respuesta ni aviso.\n    bot_activo = false;\n    motivo = 'conversacion silenciada';\n  } else if (typeof fila.bot_activo === 'boolean') {\n    bot_activo = fila.bot_activo;\n    motivo = bot_activo ? 'el bot atiende' : 'pausado: hay un humano al mando';\n  } else {\n    // La fila existe pero no trae el booleano: callar antes que equivocarse.\n    bot_activo = false;\n    motivo = 'la fila no trae bot_activo booleano (' + (typeof fila.bot_activo) + ')';\n  }\n}\n\nconst d = $('Datos del mensaje guardado').first().json;\nreturn [{ json: Object.assign({}, d, {\n  bot_activo,\n  motivo_estado: motivo,\n  conversacion_id: (fila && fila.id) || null,\n  silenciada: !!(fila && fila.silenciada),\n  bloqueada:  !!(fila && fila.bloqueada),\n  nombre_conversacion: (fila && fila.nombre) || null,\n}) }];"
+      },
+      "id": "e1000000-0000-4000-8000-000000000006",
+      "name": "Interpretar estado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1920,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b1",
+              "leftValue": "={{ $json.bot_activo }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e1000000-0000-4000-8000-000000000003",
+      "name": "¿El bot atiende a este cliente?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2112,
+        240
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "e1000000-0000-4000-8000-000000000005",
+      "name": "Humano al mando: no responder",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        2288,
+        224
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "f1000000-0000-4000-8000-0000000000f0",
+      "name": "Bot al mando",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        1728,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "-- Que fichas se le han enviado ya a este cliente.\n-- OJO: fichas_enviadas.clave todavia usa LID/telefono del mundo viejo.\nSELECT COALESCE(string_agg(DISTINCT producto, ', '), '') AS fichas\nFROM fichas_enviadas WHERE clave = $1;",
+        "options": {
+          "queryReplacement": "={{ [ $json.cliente_id ] }}"
+        }
+      },
+      "id": "f1000000-0000-4000-8000-0000000000f1",
+      "name": "Leer fichas enviadas",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2192,
+        -16
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "gAfz3X2t0Fnirf7w",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ADAPTADOR. Emite los mismos nombres de campo que usaba\n// \"Variables + Interruptor\" del v3, para que los nodos trasplantados\n// funcionen sin tocarles la logica por dentro.\n//\n// Diferencia de fondo: la identidad ya no se saca del payload crudo\n// (senderPn / remoteJid / LID), sale de cliente_id. Regla 3.\n\nconst e = $('Interpretar estado').first().json;\nconst n = $('Normalizar evento').first().json;\nlet fichas = '';\ntry { fichas = String($json.fichas || ''); } catch (err) {}\n\nreturn [{ json: {\n  numero_cliente: e.cliente_id,\n  telefono_real:  e.cliente_id,   // ya no hay LID que resolver\n  texto_cliente:  e.texto || '',\n  nombre_cliente: e.nombre_wa || e.nombre_conversacion || '',\n  mensaje_id:     e.wa_message_id,\n  ctwa_clid:      e.ctwa_clid || '',\n  ad_id:          e.ad_id || '',\n  ad_titulo:      n.ad_titulo || '',\n  ad_cuerpo:      '',\n  fichas,\n  conversacion_id: e.conversacion_id || null,\n} }];"
+      },
+      "id": "f1000000-0000-4000-8000-0000000000f2",
+      "name": "Variables",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2272,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/mensajes?cliente_id=eq.{{ $('Variables').first().json.numero_cliente }}&direccion=eq.out&order=creado.desc&limit=1&select=texto",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "f1000000-0000-4000-8000-0000000000f3",
+      "name": "Leer contexto crudo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2512,
+        384
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Mismo contrato de salida que el \"Leer contexto\" del v3: { texto }.\n// Asi \"Añadir contexto\" se trasplanta sin tocar una linea.\nconst r = $json || {};\nlet cuerpo = r.body;\nif (typeof cuerpo === 'string') { try { cuerpo = JSON.parse(cuerpo); } catch (e) {} }\nconst fila = Array.isArray(cuerpo) && cuerpo.length ? cuerpo[0] : null;\nreturn [{ json: { texto: (fila && fila.texto) || '' } }];"
+      },
+      "id": "f1000000-0000-4000-8000-0000000000f4",
+      "name": "Leer contexto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2752,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH nuevo AS (\n  INSERT INTO buffer_mensajes (numero, texto)\n  VALUES ($1, LEFT($2, 1500))\n  RETURNING id, numero\n)\nSELECT n.id,\n       (SELECT COUNT(*)::int FROM buffer_mensajes b\n         WHERE b.numero = n.numero\n           AND b.creado > NOW() - INTERVAL '1 hour') AS msgs_hora\nFROM nuevo n;",
+        "options": {
+          "queryReplacement": "={{ [ $('Variables').item.json.numero_cliente, $('Variables').item.json.texto_cliente ] }}"
+        }
+      },
+      "id": "f1000000-0000-4000-8000-000000000000",
+      "name": "Guardar en buffer",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2512,
+        128
+      ],
+      "alwaysOutputData": false,
+      "credentials": {
+        "postgres": {
+          "id": "gAfz3X2t0Fnirf7w",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c-ritmo",
+              "leftValue": "={{ $json.msgs_hora }}",
+              "rightValue": 40,
+              "operator": {
+                "type": "number",
+                "operation": "lte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f1000000-0000-4000-8000-000000000001",
+      "name": "¿Ritmo normal?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2752,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 6
+      },
+      "id": "f1000000-0000-4000-8000-000000000002",
+      "name": "Esperar 6 segundos",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        2992,
+        128
+      ],
+      "webhookId": "buffer-espera-multi"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*)::int AS posteriores\nFROM buffer_mensajes\nWHERE numero = $1 AND procesado = FALSE AND id > $2;",
+        "options": {
+          "queryReplacement": "={{ [ $('Variables').item.json.numero_cliente, $('Guardar en buffer').item.json.id ] }}"
+        }
+      },
+      "id": "f1000000-0000-4000-8000-000000000003",
+      "name": "¿Llegaron más mensajes?",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        3232,
+        128
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "gAfz3X2t0Fnirf7w",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cond-soy-ultimo",
+              "leftValue": "={{ $json.posteriores }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f1000000-0000-4000-8000-000000000004",
+      "name": "¿Soy el último?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3472,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE buffer_mensajes\nSET procesado = TRUE\nWHERE numero = $1 AND procesado = FALSE AND id <= $2\nRETURNING id, texto;",
+        "options": {
+          "queryReplacement": "={{ [ $('Variables').item.json.numero_cliente, $('Guardar en buffer').item.json.id ] }}"
+        }
+      },
+      "id": "f1000000-0000-4000-8000-000000000005",
+      "name": "Vaciar buffer",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        3712,
+        128
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "gAfz3X2t0Fnirf7w",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// JUNTAR MENSAJES + CONTEXTO DEL ANUNCIO\n// 1) Une lo que el cliente escribió durante la ventana del buffer.\n// 2) Busca si viene de un anuncio de Meta y, si es así, se lo cuenta a María.\n\n// ---------- 1. Mensajes del buffer ----------\nconst filas = $input.all()\n  .map(i => i.json)\n  .filter(f => f && f.texto)\n  .sort((a, b) => Number(a.id) - Number(b.id));\n\nconst texto = filas.map(f => String(f.texto).trim()).filter(Boolean).join('\\n');\nconst fallback = $('Variables').first().json.texto_cliente || '';\nconst textoCliente = texto || fallback;\n\n// ---------- 2. Contexto del anuncio ----------\n// Busca en cualquier parte del payload, sin dar por hecho la estructura exacta.\nfunction buscarClave(obj, clave, profundidad) {\n  profundidad = profundidad || 0;\n  if (!obj || typeof obj !== 'object' || profundidad > 8) return null;\n  if (obj[clave]) return obj[clave];\n  for (const k of Object.keys(obj)) {\n    const r = buscarClave(obj[k], clave, profundidad + 1);\n    if (r) return r;\n  }\n  return null;\n}\n\nlet contexto = '';\nlet origen = 'ninguno';\n\ntry {\n  // El v3 buscaba externalAdReply dentro del payload de Evolution.\n  // La Cloud API ya nos da la atribución normalizada, así que armamos\n  // la misma forma que espera buscarClave() y el resto sigue igual.\n  const _v = $('Variables').first().json;\n  const body = _v.ad_titulo\n    ? { externalAdReply: { title: _v.ad_titulo, body: _v.ad_cuerpo || '' } }\n    : {};\n\n  // a) Anuncio de Meta (click-to-WhatsApp)\n  const anuncio = buscarClave(body, 'externalAdReply');\n  if (anuncio) {\n    const partes = [anuncio.title, anuncio.body].filter(Boolean);\n    if (partes.length) {\n      contexto = partes.join(' — ');\n      origen = 'anuncio';\n    }\n  }\n\n  // b) Respondió citando nuestro saludo automático\n  if (!contexto) {\n    const citado = buscarClave(body, 'quotedMessage');\n    if (citado) {\n      const t = citado.conversation\n             || (citado.extendedTextMessage && citado.extendedTextMessage.text)\n             || (citado.imageMessage && citado.imageMessage.caption);\n      if (t) { contexto = String(t); origen = 'saludo citado'; }\n    }\n  }\n} catch (e) {\n  contexto = '';\n  origen = 'error: ' + e.message;\n}\n\n// ---------- 3. Lo que ve María ----------\n// El contexto solo se inyecta si existe. Si no, va el mensaje pelado.\nconst textoParaMaria = contexto\n  ? ('[CONTEXTO: este cliente llega desde este anuncio o saludo: \"'\n      + contexto.slice(0, 300) + '\"]\\n\\n' + textoCliente)\n  : textoCliente;\n\nreturn [{\n  json: {\n    texto_acumulado: textoCliente,\n    texto_para_maria: textoParaMaria,\n    contexto_anuncio: contexto,\n    origen_contexto: origen,\n    mensajes_unidos: filas.length,\n    numero_cliente: $('Variables').first().json.numero_cliente,\n    nombre_cliente: $('Variables').first().json.nombre_cliente\n  }\n}];\n"
+      },
+      "id": "f1000000-0000-4000-8000-000000000006",
+      "name": "Juntar mensajes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3952,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT COUNT(*)::int AS esperando\nFROM (\n  SELECT message FROM n8n_chat_histories\n  WHERE session_id = $1\n  ORDER BY id DESC LIMIT 1\n) t\nWHERE t.message->>'type' = 'ai'\n  AND ( t.message->'data'->>'content' ILIKE '%para preparar el env%'\n     OR t.message->'data'->>'content' ILIKE '%necesito estos datos%'\n     OR t.message->'data'->>'content' ILIKE '%datos de env%' );",
+        "options": {
+          "queryReplacement": "={{ [ 'lumabot-' + $('Variables').first().json.numero_cliente ] }}"
+        }
+      },
+      "id": "f1000000-0000-4000-8000-000000000007",
+      "name": "¿Esperando datos?",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        4192,
+        128
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "gAfz3X2t0Fnirf7w",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// AÑADIR CONTEXTO  (+ saneado de entrada)\n// Antepone al mensaje del cliente el saludo automático de la campaña.\n// IMPORTANTE: primero limpia el texto del cliente de cualquier marcador\n// interno. Si no, un cliente puede escribir [CONTEXTO: ...] o [PEDIDO]\n// y María lo interpretaría como instrucción del sistema.\n\nconst base = $('Juntar mensajes').first().json;\n\n// ---------- SANEADO ----------\nfunction sanear(t) {\n  return String(t || '')\n    // marcadores internos que solo el sistema puede emitir\n    .replace(/\\[\\s*\\/?\\s*(CONTEXTO|PEDIDO|PEDIDO_COMPLETO|FOTO|FOTO_OFERTA|ESCALAR)\\b[^\\]]*\\]/gi, '')\n    // corchetes sueltos que imiten la sintaxis\n    .replace(/\\[\\/?[A-Z_]{4,}\\s*:?[^\\]]{0,80}\\]/g, '')\n    // intentos clásicos de reescribir el rol\n    .replace(/^\\s*(system|assistant|developer)\\s*:/gim, '')\n    .trim();\n}\n\n// Techo de longitud: un mensaje enorme dispara el coste por tokens\nconst MAX = 1500;\nlet textoCliente = sanear(base.texto_acumulado);\nif (textoCliente.length > MAX) textoCliente = textoCliente.slice(0, MAX) + ' […]';\n\n// ---------- CONTEXTO ----------\nlet contexto = '';\nlet origen = 'ninguno';\n\ntry {\n  const fila = $('Leer contexto').first().json;\n  if (fila && fila.texto) { contexto = String(fila.texto); origen = 'saludo automatico'; }\n} catch (e) {}\n\nif (!contexto && base.contexto_anuncio) {\n  contexto = base.contexto_anuncio;\n  origen = base.origen_contexto || 'webhook';\n}\n\n// El contexto también se sanea: viene de un mensaje, no de nosotros\ncontexto = sanear(contexto).replace(/\\s+/g, ' ').slice(0, 300);\n\n// Fichas de presentación ya enviadas a este cliente\nlet yaEnviadas = '';\ntry { yaEnviadas = String($('Variables').first().json.fichas || '').trim(); } catch (e) {}\nconst avisoFichas = yaEnviadas\n  ? ('[FICHAS_YA_ENVIADAS: ' + yaEnviadas + ']\\n')\n  : '';\n\nconst textoParaMaria = contexto\n  ? (avisoFichas + '[CONTEXTO: este cliente llega desde este anuncio o saludo: \"'\n      + contexto + '\"]\\n\\n' + textoCliente)\n  : (avisoFichas ? avisoFichas + '\\n' + textoCliente : textoCliente);\n\nreturn [{\n  json: {\n    ...base,\n    texto_acumulado: textoCliente,\n    contexto_detectado: contexto,\n    origen_contexto: origen,\n    texto_para_maria: textoParaMaria\n  }\n}];\n"
+      },
+      "id": "f1000000-0000-4000-8000-000000000008",
+      "name": "Añadir contexto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2512,
+        384
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://docs.google.com/document/d/18ysnDDumc-X2s_DKxeNdPn8Z2tIf7cJD1LOc5JgggTM/export?format=txt",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2784,
+        560
+      ],
+      "id": "f1000000-0000-4000-8000-000000000009",
+      "name": "Leer Prompt"
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "documentId": {
+          "__rl": true,
+          "value": "1NKp7pJ-Fx-yE8IKM-Kgy_cB7d9ToVd6ECyNybDteUPQ",
+          "mode": "list",
+          "cachedResultName": "Pedidos MX Whatsapp Glowbrush Auto",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1NKp7pJ-Fx-yE8IKM-Kgy_cB7d9ToVd6ECyNybDteUPQ/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "={{ $('Resolver canal').first().json.canal_hoja || 'Productos' }}",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2992,
+        384
+      ],
+      "id": "f1000000-0000-4000-8000-000000000010",
+      "name": "Leer Catálogo",
+      "credentials": {
+        "googleApi": {
+          "id": "aRfirRPV9iB2zikq",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// PREPARAR CATÁLOGO - convierte las filas de productos en texto para María\n// Lee todos los items del nodo 'Leer Catálogo', filtra los activos, y arma un texto ordenado.\n\nconst items = $('Leer Catálogo').all();\nlet catalogo = '=== CATÁLOGO DE PRODUCTOS DISPONIBLES ===\\n\\n';\nlet contador = 0;\n\nfor (const item of items) {\n  const p = item.json;\n  // Solo productos activos\n  if (String(p.activo).trim().toUpperCase() !== 'SI') continue;\n  contador++;\n\n  catalogo += `PRODUCTO ${contador} (id: ${p.id})\\n`;\n  catalogo += `Nombre: ${p.nombre}\\n`;\n  catalogo += `Palabras que usa el cliente: ${p.palabras_clave}\\n`;\n  catalogo += `Precio: $${p.precio}`;\n  if (p.precio_antes && String(p.precio_antes) !== String(p.precio)) {\n    catalogo += ` (antes $${p.precio_antes})`;\n  }\n  catalogo += `\\n`;\n\n  // OFERTA: si el campo trae algo, María DEBE mencionarla al dar el precio.\n  //         Si está vacío, dice solo el precio y nada más.\n  if (p.ofertas && String(p.ofertas).trim()) {\n    const lista = String(p.ofertas).split('|').map(o => o.trim()).filter(Boolean);\n    catalogo += `>>> ESTE PRODUCTO TIENE OFERTA. ES OBLIGATORIO MENCIONARLA\\n`;\n    catalogo += `>>> SIEMPRE QUE DIGAS EL PRECIO, SIN EXCEPCIÓN:\\n`;\n    for (const o of lista) catalogo += `>>>   * ${o}\\n`;\n  } else {\n    catalogo += `>>> ESTE PRODUCTO NO TIENE OFERTA.\\n`;\n    catalogo += `>>> Di únicamente el precio de arriba. NO inventes ninguna promoción,\\n`;\n    catalogo += `>>> ni descuento por cantidad, ni envío especial, ni regalo.\\n`;\n  }\n\n  catalogo += `Beneficios: ${p.beneficios}\\n`;\n  catalogo += `Descripción: ${p.descripcion}\\n`;\n  if (p.colores) catalogo += `Colores: ${p.colores}\\n`;\n  if (p.entrega) catalogo += `Entrega: ${p.entrega}\\n`;\n  if (p.info_extra) catalogo += `Info adicional: ${p.info_extra}\\n`;\n  catalogo += `Foto (señal para enviarla): [FOTO:${p.id}]\\n`;\n  if (p.ficha_texto && String(p.ficha_texto).trim()) {\n    catalogo += `>>> Este producto TIENE ficha de presentación: [FICHA:${p.id}]\\n`;\n  }\n  catalogo += `\\n---\\n\\n`;\n}\n\nif (contador === 0) {\n  catalogo += '(No hay productos activos en este momento.)\\n';\n}\n\nreturn [{ json: { catalogo_texto: catalogo } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3232,
+        384
+      ],
+      "id": "f1000000-0000-4000-8000-000000000011",
+      "name": "Preparar Catálogo"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ¿TOCA FICHA?  — decisión determinista, sin llamar al modelo\n//\n// Se envía la ficha si se cumplen las TRES condiciones:\n//   1. El cliente no ha recibido ya la ficha de ese producto\n//   2. Se identifica el producto: por el mensaje del cliente O por el\n//      saludo automático del anuncio de Meta\n//   3. Es una consulta general (precio, info, entrega, pago...) o el\n//      cliente muestra intención de pedir\n\nfunction normalizar(t) {\n  return String(t || '')\n    .toLowerCase()\n    .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '')   // quita acentos\n    .replace(/[^a-z0-9ñ\\s]/g, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n\nconst base = $('Juntar mensajes').first().json;\nconst mensaje = normalizar(base.texto_acumulado);\n\n// Contexto: hay DOS fuentes posibles y se revisan las dos.\n//  a) el saludo automático de la campaña (guardado en contexto_cliente)\n//  b) el anuncio de Meta que viene en el propio webhook (externalAdReply:\n//     título y texto del anuncio). A menudo el saludo es genérico pero el\n//     anuncio sí nombra el producto.\nlet contextoSaludo = '';\nlet contextoAnuncio = '';\ntry { contextoSaludo = normalizar($('Añadir contexto').first().json.contexto_detectado); } catch (e) {}\ntry { contextoAnuncio = normalizar($('Juntar mensajes').first().json.contexto_anuncio); } catch (e) {}\nconst contexto = (contextoSaludo + ' ' + contextoAnuncio).trim();\n\n// ---------- fichas que este cliente ya recibió ----------\nlet yaEnviadas = [];\ntry {\n  yaEnviadas = String($('Variables').first().json.fichas || '')\n    .split(',').map(s => s.trim()).filter(Boolean);\n} catch (e) {}\n\n// ---------- ¿qué quiere? ----------\nconst consultaGeneral = [\n  'precio', 'precios', 'cuanto', 'cuanto cuesta', 'cuanto vale', 'cuanto sale',\n  'costo', 'cuesta', 'vale', 'valor',\n  'info', 'informacion', 'informes', 'detalles',\n  'me interesa', 'interesa', 'quiero saber', 'quiero informacion',\n  'cuenteme', 'cuentame', 'cuenteme mas', 'digame',\n  'como funciona', 'para que sirve', 'de que se trata', 'como es',\n  'promocion', 'promociones', 'oferta', 'ofertas', 'descuento',\n  'envio', 'envios', 'entrega', 'mandan', 'hacen envio', 'hacen envios', 'llega',\n  'cuanto tarda', 'cuanto tarda la entrega',\n  'pago', 'pagar', 'se paga', 'como se paga', 'forma de pago', 'metodo de pago',\n  'disponible', 'disponibilidad', 'tienen', 'hay'\n];\n\n// Intención de pedir: también merece ver la ficha antes de dar sus datos\nconst intencionPedir = [\n  'quiero ordenar', 'quiero pedir', 'quiero comprar', 'quiero uno', 'quiero dos',\n  'ordenar ya', 'pedir ya', 'lo quiero', 'la quiero', 'me lo llevo',\n  'como lo pido', 'como hago el pedido', 'como ordeno', 'quisiera pedir'\n];\n\nlet esGeneral = consultaGeneral.some(f => mensaje.includes(f))\n             || intencionPedir.some(f => mensaje.includes(f));\n\n// Saludo suelto o mensaje muy corto, cuando el anuncio ya dice el producto\nconst muyCorto = mensaje.split(' ').length <= 4;\n\n// ---------- ¿qué producto? ----------\n// Primero en el mensaje del cliente. Si no aparece, en el contexto del anuncio.\n// Devuelve TODOS los productos que coinciden, con la longitud de la\n// palabra clave que los identificó. Si coincide más de uno, hay duda.\n// MODO ESTRICTO (para saludo y anuncio): solo valen las palabras clave\n// COMPUESTAS, de dos palabras o más (\"mini luces\", \"soporte inteligente\").\n// Una palabra suelta como \"luces\", \"soporte\" o \"carga\" aparece por\n// casualidad en cualquier texto publicitario y provoca falsos positivos.\n//\n// MODO NORMAL (para el mensaje del cliente): vale cualquier palabra clave,\n// porque la gente escribe \"cepillo\" o \"sporte\" a secas.\nfunction buscarProductos(texto, minLargo, estricto) {\n  const encontrados = [];\n  if (!texto) return encontrados;\n  for (const item of $('Leer Catálogo').all()) {\n    const fila = item.json;\n    if (String(fila.activo).trim().toUpperCase() !== 'SI') continue;\n    if (!String(fila.ficha_texto || '').trim()) continue;\n    const id = String(fila.id).trim();\n    if (yaEnviadas.includes(id)) continue;\n\n    let claves = String(fila.palabras_clave || '')\n      .split(',').map(s => normalizar(s)).filter(s => s.length >= minLargo);\n\n    // El nombre completo del producto siempre vale: es único de ese producto.\n    const nombreCompleto = normalizar(fila.nombre);\n    if (nombreCompleto.length >= minLargo) claves.push(nombreCompleto);\n\n    if (estricto) {\n      // Solo expresiones de DOS PALABRAS O MÁS\n      claves = claves.filter(k => k.split(' ').length >= 2);\n    } else {\n      // Mensaje del cliente: también las palabras largas del nombre\n      claves.push(...nombreCompleto.split(' ').filter(s => s.length >= 6));\n    }\n\n    let largo = 0;\n    for (const clave of claves) {\n      if (clave && texto.includes(clave) && clave.length > largo) largo = clave.length;\n    }\n    if (largo > 0) encontrados.push({ fila, largo });\n  }\n  return encontrados.sort((a, b) => b.largo - a.largo);\n}\n\n// --- 1) El mensaje del cliente manda ---\nlet producto = null;\nlet origen = 'ninguno';\n\nconst enMensaje = buscarProductos(mensaje, 4, false);   // mensaje: modo normal\nif (enMensaje.length === 1 ||\n    (enMensaje.length > 1 && enMensaje[0].largo > enMensaje[1].largo)) {\n  producto = enMensaje[0].fila;\n  origen = 'mensaje';\n}\n\n// --- 2) Si no, los contextos, con criterio estricto ---\n// Se prueba cada fuente por separado (el anuncio de Meta suele ser la\n// que nombra el producto aunque el saludo sea genérico).\n// Solo vale si identifica UN producto sin ninguna duda. Si es genérico\n// o encaja con varios, NO se envía ficha: María preguntará.\nif (!producto) {\n  // Se consulta cada fuente y se anotan los candidatos.\n  // El SALUDO va primero: es nuestra propia plantilla y nombra el producto\n  // de forma explícita. El anuncio del webhook es secundario.\n  const candidatos = [];\n  for (const [nombreFuente, fuente] of [['saludo', contextoSaludo], ['anuncio', contextoAnuncio]]) {\n    if (!fuente) continue;\n    const enCtx = buscarProductos(fuente, 6, true);         // contexto: modo estricto\n    if (enCtx.length === 1 && enCtx[0].largo >= 6) {\n      candidatos.push({ fuente: nombreFuente, id: String(enCtx[0].fila.id).trim(), fila: enCtx[0].fila });\n    }\n  }\n\n  // Si dos fuentes señalan productos DISTINTOS, hay contradicción:\n  // no se envía ninguna ficha. María preguntará qué producto le interesa.\n  const idsDistintos = [...new Set(candidatos.map(x => x.id))];\n  if (idsDistintos.length > 1) {\n    return [{ json: {\n      enviar_ficha: false,\n      motivo: 'contradiccion entre fuentes: ' + candidatos.map(x => x.fuente + '=' + x.id).join(' / ')\n    } }];\n  }\n  if (candidatos.length > 0) {\n    producto = candidatos[0].fila;\n    origen = candidatos[0].fuente;\n  }\n}\n\n// ---------- decisión ----------\nconst enviar = Boolean(producto) && (esGeneral || muyCorto || origen === 'anuncio');\n\nif (!enviar) {\n  return [{ json: {\n    enviar_ficha: false,\n    _saludo: contextoSaludo.slice(0, 200),\n    _anuncio: contextoAnuncio.slice(0, 200),\n    motivo: producto ? 'no es consulta general' : 'producto no identificado con seguridad'\n  } }];\n}\n\nconst imagen = (producto.ficha_url && String(producto.ficha_url).trim())\n             || (producto.foto_url  && String(producto.foto_url).trim())\n             || '';\nconst texto = String(producto.ficha_texto).trim();\n\nif (!imagen) return [{ json: { enviar_ficha: false, motivo: 'sin imagen en el catalogo' } }];\n\nreturn [{\n  json: {\n    enviar_ficha: true,\n    id_producto: String(producto.id).trim(),\n    origen_producto: origen,\n    _saludo: contextoSaludo.slice(0, 200),\n    _anuncio: contextoAnuncio.slice(0, 200),\n    imagen,\n    texto,\n    numero_cliente: ($('Variables').first().json.telefono_real\n                 || $('Variables').first().json.numero_cliente)\n  }\n}];\n"
+      },
+      "id": "f1000000-0000-4000-8000-000000000012",
+      "name": "Decidir ficha",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3472,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c-enviar-ficha",
+              "leftValue": "={{ $json.enviar_ficha }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a2000000-0000-4000-8000-000000000001",
+      "name": "¿Ficha directa?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        304,
+        912
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/conversaciones?cliente_id=eq.{{ $('Variables').first().json.numero_cliente }}&select=bot_activo",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "a2000000-0000-4000-8000-000000000002",
+      "name": "Check ficha",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        912
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c-gate-ficha",
+              "leftValue": "={{ $json.pausado }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a2000000-0000-4000-8000-000000000003",
+      "name": "Ficha ya?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        800,
+        912
+      ]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Añadir contexto').item.json.texto_para_maria }}",
+        "options": {
+          "systemMessage": "={{ $('Leer Prompt').item.json.data }}\n\n{{ $('Preparar Catálogo').item.json.catalogo_texto }}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1056,
+        912
+      ],
+      "id": "a2000000-0000-4000-8000-000000000004",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-5.6-sol",
+          "mode": "list",
+          "cachedResultName": "gpt-5.6-sol"
+        },
+        "builtInTools": {},
+        "options": {
+          "maxTokens": 500
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.3,
+      "position": [
+        1408,
+        912
+      ],
+      "id": "a2000000-0000-4000-8000-000000000005",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "sxah8myyKfHWnrCY",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ 'rosy-pagos-v2-' + $('Variables').item.json.numero_cliente }}",
+        "contextWindowLength": 40
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1.4,
+      "position": [
+        1552,
+        912
+      ],
+      "id": "a2000000-0000-4000-8000-000000000006",
+      "name": "Postgres Chat Memory",
+      "credentials": {
+        "postgres": {
+          "id": "gAfz3X2t0Fnirf7w",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// FILTRO DE SEGURIDAD v5 — anti extracción\n// Dos capas independientes:\n//   A) qué PIDIÓ el cliente  -> si es un intento de sacar el prompt, la\n//      respuesta de María se descarta pase lo que pase.\n//   B) qué RESPONDIÓ María   -> aunque la pregunta pareciera inocente.\n\nconst salida  = $('AI Agent').item.json.output || '';\nconst entrada = ($('Añadir contexto').first().json.texto_acumulado || '').toLowerCase();\n\n// ---------- Limpieza de señales internas ----------\nlet respuesta = salida\n  .replace(/\\[PEDIDO\\][\\s\\S]*?\\[\\/PEDIDO\\]/gi, '')\n  .replace(/\\[PEDIDO_COMPLETO\\][\\s\\S]*?\\[\\/PEDIDO_COMPLETO\\]/gi, '')\n  .replace(/\\[FICHA:[a-zA-Z0-9_-]+\\]/gi, '')\n  .replace(/\\[FOTO:[a-zA-Z0-9_-]+\\]/gi, '')\n  .replace(/\\[FOTO_OFERTA\\]/gi, '')\n  .replace(/\\[ESCALAR:[\\s\\S]*?\\]/gi, '')\n  .trim();\n\nconst texto = respuesta.toLowerCase();\n\n// ¿La salida era ÚNICAMENTE un [ESCALAR:...]?  -> escalado silencioso:\n// se avisa al grupo pero NO se envía nada al cliente.\nconst teniaEscalar = /\\[ESCALAR:/i.test(salida);\nconst soloEscalar  = teniaEscalar && respuesta.length === 0;\n\n// ¿Emitió un [PEDIDO]? -> silencio TOTAL hacia el cliente. Aunque el\n// modelo escribiera texto alrededor del bloque, no se envía nada:\n// solo el aviso al grupo. El equipo humano se encarga desde ahí.\nconst teniaPedido = /\\[PEDIDO\\]/i.test(salida);\n\n// ============================================================\n// PROHIBIDO ENUMERAR EL CATÁLOGO\n// Si la respuesta menciona DOS O MÁS productos distintos del catálogo,\n// se descarta entera y se sustituye por la pregunta neutra.\n// Nunca se revela a un cliente (o competidor) qué vendemos.\n// ============================================================\nfunction normalizarCat(t) {\n  return String(t || '').toLowerCase()\n    .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/[^a-z0-9ñ\\s]/g, ' ').replace(/\\s+/g, ' ').trim();\n}\nlet productosMencionados = 0;\ntry {\n  const respNorm = normalizarCat(respuesta);\n  for (const item of $('Leer Catálogo').all()) {\n    const fila = item.json;\n    if (String(fila.activo).trim().toUpperCase() !== 'SI') continue;\n    // firma del producto: las palabras largas de su nombre\n    const firmas = normalizarCat(fila.nombre).split(' ').filter(w => w.length >= 5);\n    firmas.push(normalizarCat(fila.id));\n    if (firmas.some(f => f && respNorm.includes(f))) productosMencionados++;\n  }\n} catch (e) {}\n\nconst enumeraCatalogo = productosMencionados >= 2;\n\nlet bloqueado = false;\nlet motivo = '';\n\nif (enumeraCatalogo) {\n  bloqueado = true;\n  motivo = 'enumera varios productos del catalogo';\n}\n\n// ================= CAPA A: intención del cliente =================\n// Frases completas, no palabras sueltas: \"instrucciones de uso del cepillo\"\n// o \"¿qué modelo de cepillo?\" son preguntas legítimas de venta.\nconst intentosExtraccion = [\n  'tu prompt', 'el prompt', 'system prompt', 'prompt del sistema',\n  'tus instrucciones', 'las instrucciones que te', 'instrucciones del sistema',\n  'tus reglas', 'las reglas que te', 'tu configuracion', 'tu configuración',\n  'como estas programad', 'cómo estás programad', 'como te programaron',\n  'que modelo eres', 'qué modelo eres', 'modelo de lenguaje', 'que ia eres',\n  'eres un bot', 'eres una ia', 'eres un robot', 'eres humano',\n  'ignora las instrucciones', 'ignora lo anterior', 'olvida tus',\n  'olvida las instrucciones', 'a partir de ahora eres', 'actua como si',\n  'actúa como si', 'modo desarrollador', 'modo debug', 'jailbreak',\n  'repite todo lo que', 'repite tus', 'muestrame tus', 'muéstrame tus',\n  'dime tus instrucciones', 'imprime tus', 'traduce tus instrucciones',\n  'resume tus instrucciones', 'cual es tu prompt', 'cuál es tu prompt',\n  'api key', 'apikey', 'clave api', 'credenciales', 'contraseña de',\n  'base de datos', 'postgres', 'webhook', 'n8n', 'openai', 'chatgpt',\n  'quien te creo', 'quién te creó', 'que hay antes de este mensaje',\n  'texto anterior a', 'primer mensaje del sistema'\n];\n\nfor (const frase of intentosExtraccion) {\n  if (entrada.includes(frase)) {\n    bloqueado = true;\n    motivo = 'intento de extraccion: \"' + frase + '\"';\n    break;\n  }\n}\n\n// ================= CAPA B: qué iba a contestar =================\nif (!bloqueado) {\n  const señalesPeligro = [\n    'system message', 'system prompt', 'mis instrucciones son', 'mi prompt',\n    'mi configuracion', 'regla de seguridad', 'maxima prioridad',\n    'claude', 'anthropic', 'openai', 'chatgpt', 'gpt-', 'modelo de lenguaje',\n    'soy una ia', 'soy un bot', 'soy una inteligencia artificial',\n    'language model', 'como asistente de ia', 'mis reglas son',\n    'instrucciones confidenciales', 'no debo revelar', 'ignora lo anterior',\n    'estas instrucciones', 'catalogo de productos disponibles',\n    // marcas propias del prompt: si salen, está volcando el documento\n    'regla de oro', 'muy importante:', 'prohibido', 'cosas que nunca haces',\n    'paso 1', 'paso 2', 'paso 3', 'paso 4', 'paso 5', 'paso 6',\n    'ejemplo exacto', 'contexto:', 'pedido]', 'escalar:',\n    'n8n', 'postgres', 'webhook', 'api key', 'apikey', 'credencial'\n  ];\n  for (const señal of señalesPeligro) {\n    if (texto.includes(señal)) { bloqueado = true; motivo = 'fuga: ' + señal; break; }\n  }\n}\n\n// ================= CAPA C: heurísticas de volcado =================\nif (!bloqueado) {\n  // un prompt volcado trae muchas líneas; una respuesta de venta no\n  const lineas = respuesta.split('\\n').filter(l => l.trim()).length;\n  if (lineas > 14)            { bloqueado = true; motivo = 'demasiadas lineas'; }\n  else if (respuesta.length > 1200) { bloqueado = true; motivo = 'respuesta demasiado larga'; }\n}\n\n// ================= Nunca confirma pedidos por su cuenta =================\nif (!bloqueado) {\n  const frasesConfirmacion = [\n    'su pedido quedo registrado', 'su pedido ha sido registrado',\n    'pedido registrado', 'orden registrada', 'su orden quedo',\n    'ya registre su pedido', 'queda registrado'\n  ];\n  for (const f of frasesConfirmacion) {\n    if (texto.includes(f)) { bloqueado = true; motivo = 'confirmo pedido por su cuenta'; break; }\n  }\n}\n\nif (!respuesta && !soloEscalar) { bloqueado = true; motivo = 'respuesta vacia'; }\n\n// Respuesta neutra: no confirma ni desmiente nada, y reconduce a la venta\nconst mensajeSeguro = enumeraCatalogo\n  ? 'Con gusto le ayudo 😊 ¿Qué producto le interesa?'\n  : 'Disculpe, no le entendí bien 😊 ¿Sobre qué producto quiere que le ayude?';\n\nreturn [{\n  json: {\n    respuesta_final: bloqueado ? mensajeSeguro : respuesta,\n    solo_escalar: soloEscalar || teniaPedido,\n    bloqueado,\n    motivo_bloqueo: motivo,\n    numero_cliente: $('Variables').item.json.numero_cliente\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1872,
+        992
+      ],
+      "id": "a2000000-0000-4000-8000-000000000007",
+      "name": "Filtro Seguridad"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cond-escalar",
+              "leftValue": "={{ $('AI Agent').item.json.output }}",
+              "rightValue": "[ESCALAR:",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a2000000-0000-4000-8000-000000000008",
+      "name": "Hay que escalar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2064,
+        912
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "extract-motivo",
+              "name": "motivo",
+              "value": "={{ $('AI Agent').item.json.output\n  .match(/\\[ESCALAR:\\s*([\\s\\S]*?)\\]/)?.[1]?.trim()\n  || 'sin motivo especificado' }}",
+              "type": "string"
+            },
+            {
+              "id": "build-aviso",
+              "name": "aviso",
+              "value": "={{ [\n  '🔔 CONSULTA DE CLIENTE',\n  '',\n  '📱 Cliente: ' + $('Variables').item.json.numero_cliente,\n  '',\n  '❓ Motivo: ' + (\n    $('AI Agent').item.json.output\n      .match(/\\[ESCALAR:\\s*([\\s\\S]*?)\\]/)?.[1]?.trim()\n    || 'sin motivo especificado'\n  ),\n  '',\n  '💬 Último mensaje del cliente:',\n  $('Juntar mensajes').item.json.texto_acumulado\n].join('\\n') }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a2000000-0000-4000-8000-000000000009",
+      "name": "Preparar aviso",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        2304,
+        912
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cond-es-pedido",
+              "leftValue": "={{ String($('AI Agent').item.json.output || '').includes('[PEDIDO]') || ( ($('¿Esperando datos?').first().json.esperando || 0) > 0 && !String($('Añadir contexto').first().json.texto_acumulado || '').includes('?') && ( /\\d/.test(String($('Añadir contexto').first().json.texto_acumulado || '')) || String($('Añadir contexto').first().json.texto_acumulado || '').trim().split(/\\s+/).length >= 3 ) ) }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a2000000-0000-4000-8000-000000000010",
+      "name": "¿Pedido completo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2560,
+        912
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// PREPARAR PEDIDO\n// Ya no interpretamos la dirección. Cogemos el producto (que María sí sabe)\n// y le mandamos al dueño el texto tal cual lo escribió el cliente.\n\nconst salida = $('AI Agent').item.json.output || '';\nconst numero = $('Variables').first().json.telefono_real\n            || $('Variables').first().json.numero_cliente;\nconst nombreWa = $('Variables').first().json.nombre_cliente || '';\n\n// Lo que escribió el cliente en esta tanda (el buffer ya lo unió)\nconst datosCliente = ($('Juntar mensajes').first().json.texto_acumulado || '').trim();\n\n// Del bloque solo sacamos producto / cantidad / precio\nconst bloque = (salida.match(/\\[PEDIDO\\]([\\s\\S]*?)\\[\\/PEDIDO\\]/i) || [])[1] || '';\n// Funciona aunque María escriba todo el bloque en una sola línea:\n// se corta en la siguiente etiqueta conocida, no en el salto de línea.\nfunction campo(nombre) {\n  const re = new RegExp(\n    nombre + '\\\\s*:\\\\s*([\\\\s\\\\S]*?)(?=\\\\s*(?:producto|cantidad|precio|total)\\\\s*:|\\\\s*\\\\[\\\\/?PEDIDO|$)',\n    'i');\n  const m = bloque.match(re);\n  return m ? m[1].replace(/[\\s,;.]+$/, '').trim() : '';\n}\n\n// Normaliza el precio: \"$1,485\" -> 1485  (para poder sumar después)\nfunction soloNumero(v) {\n  const n = String(v || '').replace(/[^0-9.]/g, '').replace(/\\.(?=.*\\.)/g, '');\n  return n === '' ? '' : String(Math.round(parseFloat(n)));\n}\n\n// ── DE DONDE SALE EL PRODUCTO ────────────────────────────────────────\n// Nunca del texto del modelo a pelo. Se empareja contra el catalogo con\n// la MISMA normalizacion que usa \"Decidir ficha\", para que identificar\n// una ficha y registrar un pedido no puedan dar resultados distintos.\nfunction normalizar(t) {\n  return String(t || '').toLowerCase()\n    .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/[^a-z0-9ñ\\s]/g, ' ').replace(/\\s+/g, ' ').trim();\n}\n\n// OJO: aqui NO se excluyen los productos con ficha ya enviada, al reves\n// que en \"Decidir ficha\". Que el cliente que compra ya tuviera la ficha\n// es el caso NORMAL: excluirlo dejaria sin identificar justo los pedidos\n// buenos. Es el mismo error que ya nos comimos una vez con la ficha.\nfunction emparejar(texto) {\n  const t = normalizar(texto);\n  if (!t) return [];\n  const out = [];\n  for (const item of $('Leer Catálogo').all()) {\n    const f = item.json;\n    const id = String(f.id || \"\").trim();\n    if (!id) continue;\n    const claves = String(f.palabras_clave || '').split(',')\n      .map(normalizar).filter(s => s.length >= 4);\n    const nombre = normalizar(f.nombre);\n    if (nombre.length >= 4) claves.push(nombre);\n    claves.push(...nombre.split(' ').filter(s => s.length >= 6));\n    let largo = 0;\n    for (const c of claves) if (c && t.includes(c) && c.length > largo) largo = c.length;\n    if (largo > 0) out.push({ id, nombre: String(f.nombre).trim(), largo });\n  }\n  return out.sort((a, b) => b.largo - a.largo);\n}\n\n// Un empate es una duda, y una duda no se resuelve inventando.\nfunction unico(c) {\n  if (!c.length) return null;\n  if (c.length === 1) return c[0];\n  return c[0].largo > c[1].largo ? c[0] : null;\n}\n\n// Tres fuentes, de mas a menos fiable:\n//  1. Lo que el modelo puso en [PEDIDO] producto: — casi siempre copia el\n//     nombre del catalogo, solo que con la cantidad y el precio pegados.\n//  2. La ficha que recibio este cliente, si recibio UNA sola.\n//  3. Lo que escribio el cliente en esta tanda.\nlet elegido = unico(emparejar(campo('producto')));\n\nif (!elegido) {\n  let fichas = [];\n  try { fichas = String($('Variables').first().json.fichas || '')\n    .split(',').map(s => s.trim()).filter(Boolean); } catch (e) {}\n  if (fichas.length === 1) {\n    for (const item of $('Leer Catálogo').all()) {\n      if (String(item.json.id || \"\").trim() === fichas[0]) {\n        elegido = { id: fichas[0], nombre: String(item.json.nombre).trim() };\n        break;\n      }\n    }\n  }\n}\n\nif (!elegido) elegido = unico(emparejar(datosCliente));\n\nconst producto_id = elegido ? elegido.id : null;\nconst producto = elegido ? elegido.nombre : '⚠️ No confirmado — ver conversación';\nconst cantidad = campo('cantidad') || '1';\nconst precioTexto = campo('precio') || 'No indicado';\nconst precio      = soloNumero(precioTexto) || precioTexto;\n\n// Enlace directo al chat del cliente\nconst soloDigitos = String(numero).replace(/\\D/g, '');\nconst enlaceChat = 'https://wa.me/' + soloDigitos;\n\nconst aviso = [\n  '🛒🛒🛒 *NUEVO PEDIDO* 🛒🛒🛒',\n  '📱 Cliente: ' + numero,\n  '📦 Producto: ' + producto,\n  '💬 Abrir chat: ' + enlaceChat\n].join('\\n');\n\nconst confirmacion = [\n  '¡Listo! 🎉 Su pedido quedó registrado.',\n  '',\n  'Le llega a domicilio y paga en efectivo al recibirlo. Nuestro repartidor le marcará antes de llegar.',\n  '',\n  '¡Gracias por su compra! 😊'\n].join('\\n');\n\nreturn [{\n  json: {\n    numero_cliente: numero,\n    precio_texto: precioTexto,\n    nombre_wa: nombreWa,\n    enlace_chat: enlaceChat,\n    producto, cantidad, precio,\n    // El id del catalogo. null = no se pudo identificar, y entonces\n    // NO se marca el producto: mejor un hueco que un dato inventado.\n    producto_id,\n    datos_cliente: datosCliente,\n    aviso_pedido: aviso,\n    confirmacion_cliente: confirmacion\n  }\n}];\n"
+      },
+      "id": "a2000000-0000-4000-8000-000000000011",
+      "name": "Preparar pedido",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2800,
+        912
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO pedidos (telefono, nombre_wa, producto, cantidad, precio, datos_cliente)\nVALUES ($1, $2, $3, $4, $5, $6)\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [ $json.numero_cliente, $json.nombre_wa, $json.producto, $json.cantidad, $json.precio, $json.datos_cliente ] }}"
+        }
+      },
+      "id": "a2000000-0000-4000-8000-000000000012",
+      "name": "Guardar pedido",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        3056,
+        912
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "gAfz3X2t0Fnirf7w",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/conversaciones?cliente_id=eq.{{ $('Variables').first().json.numero_cliente }}&select=bot_activo",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "a2000000-0000-4000-8000-000000000013",
+      "name": "¿Sigue activo?",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3312,
+        912
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c-sigue-activo",
+              "leftValue": "={{ $json.pausado }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a2000000-0000-4000-8000-000000000014",
+      "name": "¿Enviar todavía?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3552,
+        912
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c-hay-respuesta",
+              "leftValue": "={{ $('Filtro Seguridad').item.json.solo_escalar }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a2000000-0000-4000-8000-000000000015",
+      "name": "¿Hay que responder?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3808,
+        912
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// PROCESAR FOTO POR PRODUCTO\n// La señal [FOTO:id] se busca en la salida CRUDA del AI Agent, porque el\n// Filtro Seguridad ya la ha eliminado del texto que ve el cliente.\n// El texto limpio sí viene del Filtro.\n\nconst salidaCruda = $('AI Agent').item.json.output || '';\nconst textoLimpio = ($('Filtro Seguridad').item.json.respuesta_final || '').trim();\n\n// Buscar la señal en la salida cruda\nconst match = salidaCruda.match(/\\[FOTO:([a-zA-Z0-9_-]+)\\]/i);\n\nlet hayFoto = false;\nlet fotoUrl = '';\nlet idProducto = '';\n\nif (match) {\n  idProducto = match[1];\n  const productos = $('Leer Catálogo').all();\n  for (const item of productos) {\n    if (String(item.json.id).trim() === idProducto) {\n      fotoUrl = String(item.json.foto_url || '').trim();\n      break;\n    }\n  }\n  hayFoto = fotoUrl !== '';\n}\n\nreturn [{\n  json: {\n    texto_final: textoLimpio,\n    hay_foto: hayFoto,\n    foto_url: fotoUrl,\n    id_producto: idProducto,\n    numero_cliente: $('Variables').item.json.numero_cliente\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4064,
+        912
+      ],
+      "id": "a2000000-0000-4000-8000-000000000016",
+      "name": "Procesar Foto"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "cond-foto",
+              "leftValue": "={{ $('Procesar Foto').item.json.hay_foto }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {
+          "looseTypeValidation": true
+        }
+      },
+      "id": "a2000000-0000-4000-8000-000000000017",
+      "name": "¿Es mensaje comercial?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        4304,
+        912
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/conversaciones?cliente_id=eq.{{ $('Variables').first().json.numero_cliente }}&select=bot_activo",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "a2000000-0000-4000-8000-000000000018",
+      "name": "Check oferta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4560,
+        912
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c-oferta",
+              "leftValue": "={{ $json.pausado }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a2000000-0000-4000-8000-000000000019",
+      "name": "Oferta ya?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4800,
+        912
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// PREPARAR ENVÍO HUMANO\n// Trocea la respuesta y calcula cuánto \"tarda en escribir\" cada trozo.\n// Los retardos son ACUMULATIVOS: si no, Evolution suelta antes el mensaje\n// corto y los trozos llegan desordenados.\n\nconst texto  = ($('Procesar Foto').item.json.texto_final || '').trim();\nconst numero = $('Variables').first().json.telefono_real\n            || $('Variables').first().json.numero_cliente;\n\n// --- 1. Trocear ---\n// SOLO partimos donde María puso |||.\n// Nunca partimos por nuestra cuenta: rompería las listas numeradas.\nlet trozos = texto.includes('|||') ? texto.split('|||') : [texto];\n\ntrozos = trozos.map(t => t.replace(/\\|\\|\\|/g, '').trim()).filter(Boolean);\n\n// --- 1b. Red de seguridad: reponer saltos de línea en las ofertas ---\n// Si María escribe la lista de opciones seguida en un párrafo, la desdoblamos.\nfunction arreglarOferta(t) {\n  // ¿trae opciones numeradas del tipo *1.* o *2)* pegadas a otro texto?\n  if (!/\\*\\s*\\d+\\s*[.)]\\s*\\*/.test(t)) return t;\n  return t\n    // salto antes de cada opción numerada que no esté ya al principio de línea\n    .replace(/(?!^)[ \\t]*(\\*\\s*\\d+\\s*[.)]\\s*\\*)/gm, '\\n$1')\n    // salto antes de la pregunta final\n    .replace(/([^\\n])[ \\t]+(¿(?:Cuál|Cual|Qué|Que)\\b)/g, '$1\\n$2')\n    .replace(/\\n{3,}/g, '\\n\\n')\n    .trim();\n}\ntrozos = trozos.map(arreglarOferta);\n\n// Nunca más de 3 mensajes seguidos: el resto se une al tercero\nif (trozos.length > 3) {\n  trozos = [trozos[0], trozos[1], trozos.slice(2).join('\\n\\n')];\n}\n\nif (trozos.length === 0) trozos = ['¡Gracias! 😊'];\n\n// --- 2. Tiempo de escritura, acumulado ---\n// ~60 ms por carácter, con suelo de 1,5 s y techo de 6,5 s por trozo.\nfunction tiempoEscritura(t) {\n  return Math.min(Math.max(Math.round(t.length * 60), 1500), 6500);\n}\n\nlet acumulado = 0;\nreturn trozos.map((t, i) => {\n  acumulado += tiempoEscritura(t);\n  return {\n    json: {\n      number: numero,\n      texto: t,\n      delay: acumulado,          // <- clave: cada trozo espera también lo anterior\n      parte: i + 1,\n      total_partes: trozos.length\n    }\n  };\n});\n"
+      },
+      "id": "a2000000-0000-4000-8000-000000000020",
+      "name": "Preparar envío humano",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        304,
+        1152
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/conversaciones?cliente_id=eq.{{ $('Variables').first().json.numero_cliente }}&select=bot_activo",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "a2000000-0000-4000-8000-000000000021",
+      "name": "Check final",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        560,
+        1152
+      ],
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c-gate-final",
+              "leftValue": "={{ $json.pausado }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a2000000-0000-4000-8000-000000000022",
+      "name": "Enviar ya?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        800,
+        1152
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// FILA DE INCIDENCIA — escalado de María\n// Se ejecuta en paralelo al aviso al grupo. Si Google falla, el aviso sale igual.\n\nfunction ahora() {\n  return new Date().toLocaleString('es-MX', {\n    timeZone: 'America/Mexico_City',\n    year: 'numeric', month: '2-digit', day: '2-digit',\n    hour: '2-digit', minute: '2-digit'\n  });\n}\n\nconst salida = $('AI Agent').item.json.output || '';\nconst m = salida.match(/\\[ESCALAR:\\s*([\\s\\S]*?)\\]/i);\nconst motivo = m ? m[1].trim() : 'sin motivo indicado';\n\nconst vars = $('Variables').first().json;\nlet telefono = vars.numero_cliente;\ntry { telefono = $('Variables').first().json.telefono_real || telefono; } catch (e) {}\n\nlet mensajeCliente = '';\ntry { mensajeCliente = $('Juntar mensajes').first().json.texto_acumulado || ''; } catch (e) {}\n\n// Producto del que se hablaba, si se puede saber\nlet producto = '';\ntry {\n  const texto = (mensajeCliente + ' ' + salida).toLowerCase()\n    .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');\n  for (const item of $('Leer Catálogo').all()) {\n    const fila = item.json;\n    if (String(fila.activo).trim().toUpperCase() !== 'SI') continue;\n    const claves = String(fila.palabras_clave || '').split(',')\n      .map(s => s.trim().toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, ''))\n      .filter(s => s.length >= 5);\n    if (claves.some(k => k && texto.includes(k))) { producto = fila.nombre; break; }\n  }\n} catch (e) {}\n\n// De dónde venía el cliente\nlet contexto = '';\ntry { contexto = String($('Añadir contexto').first().json.contexto_detectado || '').slice(0, 300); } catch (e) {}\n\nreturn [{ json: {\n  fecha_hora: ahora(),\n  telefono: String(telefono),\n  nombre_wa: vars.nombre_cliente || '',\n  tipo: 'escalado',\n  motivo,\n  mensaje_cliente: mensajeCliente.slice(0, 500),\n  producto,\n  contexto,\n  estado: ''\n} }];\n"
+      },
+      "id": "a2000000-0000-4000-8000-000000000023",
+      "name": "Fila incidencia",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1056,
+        1152
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1NKp7pJ-Fx-yE8IKM-Kgy_cB7d9ToVd6ECyNybDteUPQ",
+          "mode": "list",
+          "cachedResultName": "Catalog Lado Luminoso",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1NKp7pJ-Fx-yE8IKM-Kgy_cB7d9ToVd6ECyNybDteUPQ/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 98987734,
+          "mode": "list",
+          "cachedResultName": "Incidencias",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1NKp7pJ-Fx-yE8IKM-Kgy_cB7d9ToVd6ECyNybDteUPQ/edit#gid=98987734"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "fecha_hora": "={{ $json.fecha_hora }}",
+            "telefono": "={{ $json.telefono }}",
+            "nombre_wa": "={{ $json.nombre_wa }}",
+            "tipo": "={{ $json.tipo }}",
+            "motivo": "={{ $json.motivo }}",
+            "mensaje_cliente": "={{ $json.mensaje_cliente }}",
+            "producto": "={{ $json.producto }}",
+            "contexto": "={{ $json.contexto }}",
+            "estado": "={{ $json.estado }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "fecha_hora",
+              "displayName": "fecha_hora",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "telefono",
+              "displayName": "telefono",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "nombre_wa",
+              "displayName": "nombre_wa",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "tipo",
+              "displayName": "tipo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "motivo",
+              "displayName": "motivo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "mensaje_cliente",
+              "displayName": "mensaje_cliente",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "producto",
+              "displayName": "producto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "contexto",
+              "displayName": "contexto",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "estado",
+              "displayName": "estado",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "a2000000-0000-4000-8000-000000000024",
+      "name": "Guardar incidencia",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1312,
+        1152
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "aRfirRPV9iB2zikq",
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// EVENTO DE COMPRA PARA META (API de Conversiones)\n// Se dispara cuando entra un pedido. Usa el ctwa_clid capturado en el\n// primer mensaje del cliente: eso da atribución EXACTA al anuncio.\n\n// SHA-256 en JavaScript puro: n8n bloquea el módulo 'crypto'\nfunction sha256(msg) {\n  function rotr(n,x){return (x>>>n)|(x<<(32-n));}\n  function ch(x,y,z){return (x&y)^(~x&z);}\n  function maj(x,y,z){return (x&y)^(x&z)^(y&z);}\n  function s0(x){return rotr(2,x)^rotr(13,x)^rotr(22,x);}\n  function s1(x){return rotr(6,x)^rotr(11,x)^rotr(25,x);}\n  function g0(x){return rotr(7,x)^rotr(18,x)^(x>>>3);}\n  function g1(x){return rotr(17,x)^rotr(19,x)^(x>>>10);}\n  const K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,\n  0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,\n  0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,\n  0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,\n  0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,\n  0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,\n  0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,\n  0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];\n  let H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];\n  const bytes=[];\n  for(const cp of unescape(encodeURIComponent(msg))) bytes.push(cp.charCodeAt(0));\n  const bitLen=bytes.length*8;\n  bytes.push(0x80);\n  while(bytes.length%64!==56) bytes.push(0);\n  for(let i=7;i>=0;i--) bytes.push((bitLen/Math.pow(2,i*8))&0xff);\n  for(let b=0;b<bytes.length;b+=64){\n    const w=new Array(64);\n    for(let i=0;i<16;i++) w[i]=(bytes[b+i*4]<<24)|(bytes[b+i*4+1]<<16)|(bytes[b+i*4+2]<<8)|bytes[b+i*4+3];\n    for(let i=16;i<64;i++) w[i]=(g1(w[i-2])+w[i-7]+g0(w[i-15])+w[i-16])|0;\n    let a=H[0],bb=H[1],cc=H[2],dd=H[3],e=H[4],f=H[5],g=H[6],h=H[7];\n    for(let i=0;i<64;i++){\n      const t1=(h+s1(e)+ch(e,f,g)+K[i]+w[i])|0;\n      const t2=(s0(a)+maj(a,bb,cc))|0;\n      h=g;g=f;f=e;e=(dd+t1)|0;dd=cc;cc=bb;bb=a;a=(t1+t2)|0;\n    }\n    H=[(H[0]+a)|0,(H[1]+bb)|0,(H[2]+cc)|0,(H[3]+dd)|0,(H[4]+e)|0,(H[5]+f)|0,(H[6]+g)|0,(H[7]+h)|0];\n  }\n  return H.map(x=>((x>>>0).toString(16).padStart(8,'0'))).join('');\n}\n\nconst pedido = $('Preparar pedido').first().json;\n\nlet clid = '', adId = '', telefono = '';\ntry {\n  const est = $('Variables').first().json;\n  clid     = String(est.ctwa_clid || '');\n  adId     = String(est.ad_id || '');\n  telefono = String(est.telefono_real || '');\n} catch (e) {}\n\nif (!telefono) telefono = String(pedido.numero_cliente || '');\n\n// Sin clid la atribución sería muy pobre: mejor no ensuciar el dataset.\nif (!clid) {\n  return [{ json: { enviar: false, motivo: 'sin ctwa_clid: el cliente no vino de un anuncio' } }];\n}\n\n// Valor: solo el número, tal y como se guarda en la tabla pedidos\nconst valor = parseFloat(String(pedido.precio).replace(/[^0-9.]/g, '')) || 0;\n\nconst evento = {\n  data: [{\n    event_name: 'Purchase',\n    event_time: Math.floor(Date.now() / 1000),\n    action_source: 'business_messaging',\n    messaging_channel: 'whatsapp',\n    event_id: 'pedido-' + (pedido.numero_cliente || '') + '-' + Math.floor(Date.now() / 1000),\n    user_data: {\n      ctwa_clid: clid,\n      ph: [sha256(String(telefono).replace(/\\D/g, '').trim())]\n    },\n    custom_data: {\n      currency: 'MXN',\n      value: valor,\n      content_name: pedido.producto || '',\n      num_items: parseInt(pedido.cantidad, 10) || 1,\n      order_id: 'wa-' + (pedido.numero_cliente || '') + '-' + Math.floor(Date.now() / 1000)\n    }\n  }]\n};\n\nreturn [{ json: { enviar: true, evento, clid, ad_id: adId, valor } }];\n"
+      },
+      "id": "a2000000-0000-4000-8000-000000000025",
+      "name": "Preparar evento Meta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1552,
+        1152
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "c-enviar-meta",
+              "leftValue": "={{ $json.enviar }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a2000000-0000-4000-8000-000000000026",
+      "name": "¿Vino de un anuncio?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1808,
+        1152
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v21.0/2044273926400221/events",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "access_token",
+              "value": " $2a$14$NdqoYuDbGP/j7s386ZGrGezpWmIuyJplAvrCAiB3GrZJV/Fls2YHa"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.evento) }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "a2000000-0000-4000-8000-000000000027",
+      "name": "Enviar a Meta CAPI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2064,
+        1152
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Mismo contrato que la consulta vieja a pausados: { pausado: 0|1 }.\n// Asi el IF que viene detras se trasplanta sin tocarlo.\nconst r = $json || {};\nlet c = r.body;\nif (typeof c === 'string') { try { c = JSON.parse(c); } catch (e) {} }\nconst fila = Array.isArray(c) && c.length ? c[0] : null;\n// Si no se puede leer, asumimos NO pausado y seguimos (igual que antes).\nconst activo = fila ? fila.bot_activo !== false : true;\n// Y ademas el interruptor del canal: pausar un numero tiene que callar a\n// Maria tambien a mitad de flujo, no solo en la puerta de entrada.\nconst canalOk = $('Resolver canal').first().json.canal_bot_activo !== false;\nreturn [{ json: { pausado: (activo && canalOk) ? 0 : 1 } }];"
+      },
+      "id": "a2000000-0000-4000-8000-000000000031",
+      "name": "¿Sigue activo? (adaptar)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3056,
+        1152
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Mismo contrato que la consulta vieja a pausados: { pausado: 0|1 }.\n// Asi el IF que viene detras se trasplanta sin tocarlo.\nconst r = $json || {};\nlet c = r.body;\nif (typeof c === 'string') { try { c = JSON.parse(c); } catch (e) {} }\nconst fila = Array.isArray(c) && c.length ? c[0] : null;\n// Si no se puede leer, asumimos NO pausado y seguimos (igual que antes).\nconst activo = fila ? fila.bot_activo !== false : true;\n// Y ademas el interruptor del canal: pausar un numero tiene que callar a\n// Maria tambien a mitad de flujo, no solo en la puerta de entrada.\nconst canalOk = $('Resolver canal').first().json.canal_bot_activo !== false;\nreturn [{ json: { pausado: (activo && canalOk) ? 0 : 1 } }];"
+      },
+      "id": "a2000000-0000-4000-8000-000000000032",
+      "name": "Check final (adaptar)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3312,
+        1152
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Mismo contrato que la consulta vieja a pausados: { pausado: 0|1 }.\n// Asi el IF que viene detras se trasplanta sin tocarlo.\nconst r = $json || {};\nlet c = r.body;\nif (typeof c === 'string') { try { c = JSON.parse(c); } catch (e) {} }\nconst fila = Array.isArray(c) && c.length ? c[0] : null;\n// Si no se puede leer, asumimos NO pausado y seguimos (igual que antes).\nconst activo = fila ? fila.bot_activo !== false : true;\n// Y ademas el interruptor del canal: pausar un numero tiene que callar a\n// Maria tambien a mitad de flujo, no solo en la puerta de entrada.\nconst canalOk = $('Resolver canal').first().json.canal_bot_activo !== false;\nreturn [{ json: { pausado: (activo && canalOk) ? 0 : 1 } }];"
+      },
+      "id": "a2000000-0000-4000-8000-000000000033",
+      "name": "Check ficha (adaptar)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3552,
+        1152
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Mismo contrato que la consulta vieja a pausados: { pausado: 0|1 }.\n// Asi el IF que viene detras se trasplanta sin tocarlo.\nconst r = $json || {};\nlet c = r.body;\nif (typeof c === 'string') { try { c = JSON.parse(c); } catch (e) {} }\nconst fila = Array.isArray(c) && c.length ? c[0] : null;\n// Si no se puede leer, asumimos NO pausado y seguimos (igual que antes).\nconst activo = fila ? fila.bot_activo !== false : true;\n// Y ademas el interruptor del canal: pausar un numero tiene que callar a\n// Maria tambien a mitad de flujo, no solo en la puerta de entrada.\nconst canalOk = $('Resolver canal').first().json.canal_bot_activo !== false;\nreturn [{ json: { pausado: (activo && canalOk) ? 0 : 1 } }];"
+      },
+      "id": "a2000000-0000-4000-8000-000000000034",
+      "name": "Check oferta (adaptar)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3808,
+        1152
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/conversaciones?cliente_id=eq.{{ $('Variables').first().json.numero_cliente }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ bot_activo: false }) }}",
+        "options": {}
+      },
+      "id": "a2000000-0000-4000-8000-000000000035",
+      "name": "Apagar tras el pedido",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4064,
+        1152
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO fichas_enviadas (clave, producto) VALUES ($1, $2)\nON CONFLICT (clave, producto) DO NOTHING;",
+        "options": {
+          "queryReplacement": "={{ [ $('Variables').first().json.numero_cliente, $('Decidir ficha').first().json.id_producto ] }}"
+        }
+      },
+      "id": "a2000000-0000-4000-8000-000000000036",
+      "name": "Marcar ficha directa",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        4304,
+        1152
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "gAfz3X2t0Fnirf7w",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Contrato del punto único de salida.\nconst p = $('Preparar envío humano').first().json;\nreturn [{ json: {\n  accion: 'texto',\n  cliente_id: $('Variables').first().json.numero_cliente,\n  texto: p.texto,\n  autor: 'bot',\n} }];"
+      },
+      "id": "a2000000-0000-4000-8000-000000000037",
+      "name": "Preparar: respuesta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4560,
+        1152
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": "CYgKApb26ARGlhVZ",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "a2000000-0000-4000-8000-000000000038",
+      "name": "ENVIAR respuesta",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        4800,
+        1152
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const f = $('Procesar Foto').first().json;\nreturn [{ json: {\n  accion: 'imagen',\n  cliente_id: $('Variables').first().json.numero_cliente,\n  media_url: f.foto_url || f.media || null,\n  texto: String(f.texto_final || '').replace(/\\|\\|\\|/g, '\\n'),\n  autor: 'bot',\n} }];"
+      },
+      "id": "a2000000-0000-4000-8000-000000000039",
+      "name": "Preparar: oferta con foto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        304,
+        1392
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": "CYgKApb26ARGlhVZ",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "a2000000-0000-4000-8000-000000000040",
+      "name": "ENVIAR oferta con foto",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        560,
+        1392
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const d = $('Decidir ficha').first().json;\nreturn [{ json: {\n  accion: 'imagen',\n  cliente_id: $('Variables').first().json.numero_cliente,\n  media_url: d.imagen || d.media || null,\n  texto: d.texto,\n  autor: 'bot',\n} }];"
+      },
+      "id": "a2000000-0000-4000-8000-000000000041",
+      "name": "Preparar: ficha directa",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        1392
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": "CYgKApb26ARGlhVZ",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "a2000000-0000-4000-8000-000000000042",
+      "name": "ENVIAR ficha directa",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        1056,
+        1392
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Lo único que se le dice al cliente después de dar sus datos.\n// Regla dura: silencio total salvo esto.\nreturn [{ json: {\n  accion: 'texto',\n  cliente_id: $('Variables').first().json.numero_cliente,\n  texto: '¡Gracias! 😊',\n  autor: 'bot',\n} }];"
+      },
+      "id": "a2000000-0000-4000-8000-000000000043",
+      "name": "Preparar: gracias",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1312,
+        1392
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": "CYgKApb26ARGlhVZ",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "a2000000-0000-4000-8000-000000000044",
+      "name": "ENVIAR gracias",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        1552,
+        1392
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Se funden en una sola llamada: marcar como leido Y mostrar \"escribiendo\".\n// Solo se llega aqui si el bot va a responder (bot_activo = true), que es\n// la regla: nunca mostrar el indicador si no vamos a contestar.\nreturn [{ json: {\n  accion: 'marcar_leido',\n  // SIN cliente_id no hay forma de saber por que numero contestar: el\n  // subflujo resuelve el canal leyendo la conversacion de ESTE cliente.\n  // Faltaba, y por eso el marcar-leido del canal 2 salia por el canal 1.\n  cliente_id: $('Variables').first().json.numero_cliente,\n  wa_message_id: $('Variables').first().json.mensaje_id,\n  typing: true,\n} }];"
+      },
+      "id": "a2000000-0000-4000-8000-000000000045",
+      "name": "Preparar: leído + escribiendo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1808,
+        1392
+      ]
+    },
+    {
+      "parameters": {
+        "workflowId": "CYgKApb26ARGlhVZ",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "a2000000-0000-4000-8000-000000000046",
+      "name": "MARCAR leído + escribiendo",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        2064,
+        1392
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TG_INCIDENCIAS_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $env.TG_INCIDENCIAS_CHAT, text: $json.aviso }) }}",
+        "options": {}
+      },
+      "id": "a2000000-0000-4000-8000-000000000047",
+      "name": "Avisar al dueño",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2304,
+        1392
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TG_PEDIDOS_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $env.TG_PEDIDOS_CHAT, text: $('Preparar pedido').first().json.aviso_pedido }) }}",
+        "options": {}
+      },
+      "id": "a2000000-0000-4000-8000-000000000048",
+      "name": "Avisar al dueño - Pedido",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2560,
+        1392
+      ],
+      "onError": "continueRegularOutput"
+    },
+    {
+      "name": "Nota audio",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        2380,
+        1840
+      ],
+      "parameters": {
+        "width": 1460,
+        "height": 240,
+        "color": 4,
+        "content": "## Audio entrante — media, Whisper y reglas\n\nVa **antes** de la bifurcacion del bot a proposito: la transcripcion tiene que\nestar lista cuando `Variables` lee el texto, o el AI Agent contesta a la nada.\n\nLos fallos de Graph, descarga, subida o bajada caen todos en **MEDIA fallo**,\nque emite el mismo contrato que `TRANSCRIBIR leer resultado` para que la\ndecision se tome en un solo sitio: **AUDIO decidir**."
+      },
+      "id": "50c52fd8-289d-4a42-96b0-217f9702eb63"
+    },
+    {
+      "name": "MEDIA ¿trae adjunto?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2400,
+        2100
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "m1",
+              "leftValue": "={{ $('Normalizar evento').first().json.media_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b67c79f3-b224-43dc-8900-52dd31224502"
+    },
+    {
+      "name": "MEDIA pedir URL a Graph",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2620,
+        2020
+      ],
+      "parameters": {
+        "url": "=https://graph.facebook.com/{{ $env.WA_API_VERSION }}/{{ $('Normalizar evento').first().json.media_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.WA_TOKEN }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "onError": "continueErrorOutput",
+      "id": "93859a66-c1df-44e4-956b-ff14115bf545"
+    },
+    {
+      "name": "MEDIA descargar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2840,
+        2020
+      ],
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.WA_TOKEN }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "a9d93786-1b7e-4632-9df8-a349ce481426"
+    },
+    {
+      "name": "MEDIA preparar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3060,
+        2020
+      ],
+      "parameters": {
+        "jsCode": "const ev   = $('Normalizar evento').first().json;\nconst meta = $('MEDIA pedir URL a Graph').first().json;\n\nconst mime = String(meta.mime_type || ev.media_mime || '').split(';')[0].trim();\nconst EXT = {\n  'audio/ogg': 'ogg', 'audio/mpeg': 'mp3', 'audio/mp4': 'm4a', 'audio/amr': 'amr',\n  'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp',\n  'video/mp4': 'mp4', 'video/3gpp': '3gp',\n  'application/pdf': 'pdf',\n};\nconst ext = EXT[mime] || 'bin';\n\n// DURACION. Meta no la manda en el webhook y la regla de los 2 segundos\n// la necesita, asi que se saca del propio fichero: en Ogg/Opus el granule\n// de la ultima pagina son muestras a 48 kHz.\n//\n// OJO: este workflow va con binaryMode=separate, o sea que el binario NO\n// viaja dentro de $binary.data.data (ahi solo queda una referencia corta,\n// lo comprobamos: 13 caracteres). Hay que pedirle el buffer al helper.\n// Si no se puede, Whisper devuelve tambien la duracion en verbose_json.\nlet duracion = null;\ntry {\n  if (mime.startsWith('audio/ogg')) {\n    let bin = null;\n    try { bin = await this.helpers.getBinaryDataBuffer(0, 'data'); } catch (e) {}\n    if (!bin) {\n      const b = ($input.first().binary || {}).data;\n      if (b && b.data && b.data.length > 100) bin = Buffer.from(b.data, 'base64');\n    }\n    if (bin) {\n      for (let i = bin.length - 27; i >= 0; i--) {\n        if (bin[i] === 0x4f && bin[i+1] === 0x67 && bin[i+2] === 0x67 && bin[i+3] === 0x53) {\n          // Sin redondear: 1,6 s tiene que seguir siendo MENOR que 2.\n          duracion = Number((Number(bin.readBigUInt64LE(i + 6)) / 48000).toFixed(2));\n          break;\n        }\n      }\n    }\n  }\n} catch (e) { /* no es critico, Whisper la trae */ }\n\n// RUTA. En los documentos se cuelga el nombre real detras del media_id,\n// con el mismo formato que usan los salientes ({sello}-{nombre}). Asi el\n// inbox saca el nombre de la ruta con nombreDeRuta() y no hace falta una\n// columna nueva en `adjuntos`. Un PDF entrante sin esto se enseñaba como\n// \"3949679035338900.pdf\".\nlet ruta;\nif (ev.tipo === 'document' && ev.nombre_fichero) {\n  const seguro = String(ev.nombre_fichero)\n    .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/[^A-Za-z0-9._-]+/g, '-')\n    .replace(/-{2,}/g, '-')\n    .replace(/^[-.]+/, '')\n    .slice(0, 80);\n  ruta = ev.cliente_id + '/' + ev.media_id + '-' + (seguro || 'documento.' + ext);\n} else {\n  ruta = ev.cliente_id + '/' + ev.media_id + '.' + ext;\n}\n\nreturn [{\n  json: {\n    cliente_id:    ev.cliente_id,\n    wa_message_id: ev.wa_message_id,\n    media_id:      ev.media_id,\n    tipo:          ev.tipo,\n    mime, ext, duracion,\n    ruta,\n    tamano: meta.file_size || null,\n  },\n  binary: $input.first().binary,\n}];"
+      },
+      "id": "0fd70376-582e-400b-85d5-192fdaaebc47"
+    },
+    {
+      "name": "MEDIA subir a Storage",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3280,
+        2020
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/storage/v1/object/media-whatsapp/{{ $json.ruta }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "={{ $json.mime }}"
+            },
+            {
+              "name": "x-upsert",
+              "value": "true"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {}
+      },
+      "onError": "continueErrorOutput",
+      "id": "610e665b-b1d6-4366-bd61-d90a4e01fe00"
+    },
+    {
+      "name": "MEDIA buscar mensaje",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3500,
+        2020
+      ],
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/mensajes?select=id&msg_id_canal=eq.{{ $('MEDIA preparar').first().json.wa_message_id }}&limit=1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput",
+      "id": "6d7ee293-864b-44f2-94e3-ae306454e735"
+    },
+    {
+      "name": "MEDIA fila de adjunto",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3720,
+        2020
+      ],
+      "parameters": {
+        "jsCode": "const p = $('MEDIA preparar').first().json;\n\n// Normalizamos las tres formas en que puede llegar la respuesta:\n// cuerpo array, cuerpo cadena sin parsear, o ya partido en items.\nlet filas = ($json || {}).body;\nif (filas === undefined) filas = $json;\nif (typeof filas === 'string') { try { filas = JSON.parse(filas); } catch (e) {} }\nif (!Array.isArray(filas)) filas = filas ? [filas] : [];\nconst fila = filas.find(f => f && f.id) || null;\n\nif (!fila || !fila.id) {\n  // Sin mensaje al que colgarse, la FK rechazaria el insert.\n  return [{ json: { saltar: true, motivo: 'no se encontro el mensaje ' + p.wa_message_id } }];\n}\n\n// adjuntos.tipo solo admite image|audio|video|document|sticker.\nconst TIPOS = ['image','audio','video','document','sticker'];\n\nreturn [{ json: {\n  saltar: false,\n  mensaje_id:   fila.id,\n  tipo:         TIPOS.includes(p.tipo) ? p.tipo : 'document',\n  storage_path: p.ruta,\n  tamano:       p.tamano,\n  // adjuntos.duracion es INT: se redondea para guardar, pero la regla\n  // de los 2 s trabaja con el decimal que calculo MEDIA preparar.\n  duracion:     p.duracion == null ? null : Math.round(p.duracion),\n} }];"
+      },
+      "id": "d7dc66a1-324c-44d6-8977-a74f074bc852"
+    },
+    {
+      "name": "MEDIA ¿hay mensaje?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3940,
+        2020
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "s1",
+              "leftValue": "={{ $json.saltar ? \"si\" : \"no\" }}",
+              "rightValue": "no",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "68484c0d-5e2a-44ef-b16e-ce77d068c190"
+    },
+    {
+      "name": "MEDIA guardar adjunto",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4160,
+        1940
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/adjuntos",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ mensaje_id: $json.mensaje_id, tipo: $json.tipo, storage_path: $json.storage_path, tamano: $json.tamano, duracion: $json.duracion }) }}",
+        "options": {}
+      },
+      "onError": "continueRegularOutput",
+      "id": "e714c4e4-f7d9-40e9-8cc9-2865033c1f55"
+    },
+    {
+      "name": "MEDIA marcar en el mensaje",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4380,
+        1940
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/mensajes?id=eq.{{ $('MEDIA fila de adjunto').first().json.mensaje_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ media_url: $('MEDIA preparar').first().json.ruta }) }}",
+        "options": {}
+      },
+      "onError": "continueRegularOutput",
+      "id": "f603a9c9-0a56-4363-890c-dd04d0f2d609"
+    },
+    {
+      "name": "MEDIA sin mensaje al que colgarse",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        4160,
+        2180
+      ],
+      "parameters": {},
+      "id": "4f5573da-2d8b-4c16-a22d-d4fbf1a52ece"
+    },
+    {
+      "name": "MEDIA fallo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3280,
+        2400
+      ],
+      "parameters": {
+        "jsCode": "// Punto de reunion de todos los fallos de la cadena: Graph, la descarga,\n// la subida al Storage o la bajada para transcribir. Emite el MISMO\n// contrato que \"TRANSCRIBIR leer resultado\" para que \"AUDIO decidir\" no\n// tenga que saber por donde se rompio.\nconst ev = $('Normalizar evento').first().json;\nconst e = $json || {};\nconst detalle = (e.error && e.error.message) || e.message ||\n                JSON.stringify(e).slice(0, 160);\n\n// La duracion puede haberse calculado antes de romperse: si murio en la\n// subida, MEDIA preparar ya habia corrido. Si la tenemos, un audio de\n// medio segundo sigue siendo de medio segundo: silencio, no aviso.\nlet duracion = null;\ntry { duracion = $('MEDIA preparar').first().json.duracion; } catch (err) {}\n\nreturn [{ json: {\n  ok: false,\n  texto: null,\n  duracion,\n  motivo: 'fallo la cadena de media: ' + detalle,\n  tipo: ev.tipo,\n  ruta: null,\n} }];"
+      },
+      "id": "34fe4844-f503-4c42-bdce-ed4a7a461121"
+    },
+    {
+      "name": "TRANSCRIBIR ¿es audio?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        4600,
+        1940
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "t1",
+              "leftValue": "={{ $('MEDIA preparar').first().json.tipo }}",
+              "rightValue": "audio",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "64a5238f-9d7a-472a-a482-8930477ee2ce"
+    },
+    {
+      "name": "TRANSCRIBIR bajar de Storage",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        4820,
+        1860
+      ],
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/storage/v1/object/media-whatsapp/{{ $('MEDIA preparar').first().json.ruta }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file",
+              "outputPropertyName": "data"
+            }
+          }
+        }
+      },
+      "onError": "continueErrorOutput",
+      "id": "dc9a94eb-6757-4fb3-8c91-6b361c13cef0"
+    },
+    {
+      "name": "TRANSCRIBIR con Whisper",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5040,
+        1860
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.openai.com/v1/audio/transcriptions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openAiApi",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "model",
+              "value": "whisper-1"
+            },
+            {
+              "name": "language",
+              "value": "es"
+            },
+            {
+              "name": "response_format",
+              "value": "verbose_json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "credentials": {
+        "openAiApi": {
+          "id": "sxah8myyKfHWnrCY",
+          "name": "OpenAI account"
+        }
+      },
+      "onError": "continueRegularOutput",
+      "id": "a207a6b8-d69e-4f7e-bbc9-507cd1e160c0"
+    },
+    {
+      "name": "TRANSCRIBIR leer resultado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5260,
+        1860
+      ],
+      "parameters": {
+        "jsCode": "const r = $json || {};\nconst codigo = r.statusCode || 0;\nlet cuerpo = r.body;\nif (typeof cuerpo === 'string') { try { cuerpo = JSON.parse(cuerpo); } catch (e) {} }\n\nconst p = $('MEDIA preparar').first().json;\n\nlet texto = null, motivo = null;\n\n// La duracion de verbose_json manda sobre la del granule: la mide el\n// propio Whisper sobre el audio ya decodificado.\nlet duracion = (cuerpo && typeof cuerpo.duration === 'number') ? cuerpo.duration : p.duracion;\n\nif (codigo >= 200 && codigo < 300 && cuerpo && cuerpo.text) {\n  texto = String(cuerpo.text).trim();\n\n  // Con silencio o puro ruido Whisper casi nunca devuelve vacio: alucina\n  // cosas como \"Gracias por ver el video\". Por eso no basta con mirar el\n  // texto, hay que mirar su propia confianza. verbose_json trae\n  // no_speech_prob por segmento: si TODOS los segmentos dicen que ahi no\n  // hay voz, no hay voz, diga lo que diga el texto.\n  const segs = Array.isArray(cuerpo.segments) ? cuerpo.segments : [];\n  const sinVoz = segs.length > 0 &&\n    segs.every(s => typeof s.no_speech_prob === 'number' && s.no_speech_prob > 0.6);\n\n  if (texto.length < 2) { texto = null; motivo = 'audio sin habla'; }\n  else if (sinVoz) {\n    texto = null;\n    motivo = 'Whisper no oye voz (no_speech_prob > 0.6 en todos los segmentos)';\n  }\n} else {\n  motivo = 'Whisper devolvio ' + codigo + ': ' +\n           JSON.stringify((cuerpo && cuerpo.error) || cuerpo).slice(0, 160);\n}\n\nreturn [{ json: { ok: !!texto, texto, duracion, motivo, tipo: p.tipo, ruta: p.ruta } }];"
+      },
+      "id": "713ba87b-4173-40af-bd49-f3a0a6948685"
+    },
+    {
+      "name": "TRANSCRIBIR guardar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        5480,
+        1860
+      ],
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/adjuntos?storage_path=eq.{{ $json.ruta }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ transcripcion: $json.texto, duracion: $json.duracion == null ? null : Math.round($json.duracion) }) }}",
+        "options": {}
+      },
+      "onError": "continueRegularOutput",
+      "id": "412d3956-87f8-4e5c-ae4c-805143a0a953"
+    },
+    {
+      "name": "AUDIO decidir",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5700,
+        1940
+      ],
+      "parameters": {
+        "jsCode": "// REGLAS DEL AUDIO ENTRANTE\n//\n//   < 2 s ............... Maria calla. Suele ser el cliente pulsando sin\n//                         querer. El audio se descarga, se guarda y se\n//                         transcribe igual: en el inbox se ve. Ni alerta,\n//                         ni pausa, ni cuenta como mensaje sin responder.\n//   >= 2 s y sin texto .. Una sola frase pidiendo que lo repita, en tono\n//                         humano, + aviso a Incidencias. No pausa.\n//   >= 2 s y con texto .. El texto entra al bot como un mensaje normal.\n//                         Maria responde al CONTENIDO y punto, sin avisos.\n//\n// UMBRAL. Empezo en 2 s y se subio a 2,5 el 22/08: un audio que WhatsApp\n// pintaba como \"0:02\" medía 2,009 s y se colaba por 9 milisegundos.\n// Whisper saco de el \"Pero que...\" y Maria contesto \"Digame, que duda\n// tiene?\" a un pulsado sin querer. Por debajo no se puede bajar mucho:\n// un \"hola\" real sale en 1,2 s y ese SI hay que contestarlo.\nconst UMBRAL = 2.5;\n\nconst ev = $('Normalizar evento').first().json;\n\nlet t = null;\ntry { t = $('TRANSCRIBIR leer resultado').first().json; } catch (e) {}\nlet fallo = null;\ntry { fallo = $('MEDIA fallo').first().json; } catch (e) {}\n\nconst base  = t || fallo || {};\nconst tipo  = base.tipo || ev.tipo;\nconst texto = base.ok ? base.texto : null;\nconst duracion = base.duracion == null ? null : Number(base.duracion);\nconst motivo = base.motivo || null;\n\nlet via;\nif (tipo !== 'audio') {\n  // Foto, video o documento: esta rama no opina, sigue el bot como siempre.\n  via = 'normal';\n} else if (duracion != null && duracion < UMBRAL) {\n  // Corto: se ha guardado y transcrito, pero Maria no dice nada.\n  via = 'corto';\n} else if (texto) {\n  via = 'normal';\n} else {\n  // >= 2 s (o duracion desconocida) y sin texto utilizable.\n  via = 'ilegible';\n}\n\nreturn [{ json: {\n  via, tipo, texto, duracion, motivo,\n  cliente_id:    ev.cliente_id,\n  wa_message_id: ev.wa_message_id,\n} }];"
+      },
+      "id": "d8b596ae-4591-41b1-95d0-27b6c788fcbb"
+    },
+    {
+      "name": "AUDIO ¿qué hacemos?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        5920,
+        1940
+      ],
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "a-corto",
+                    "leftValue": "={{ $json.via }}",
+                    "rightValue": "corto",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "corto"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "a-ilegible",
+                    "leftValue": "={{ $json.via }}",
+                    "rightValue": "ilegible",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "ilegible"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "id": "a-normal",
+                    "leftValue": "={{ $json.via }}",
+                    "rightValue": "normal",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "normal"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2cb7a777-9301-438d-aaf5-aaf1ab8548c6"
+    },
+    {
+      "name": "AUDIO corto: silencio",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        6140,
+        1740
+      ],
+      "parameters": {},
+      "id": "17af0f7d-d371-4daf-aec0-3a2beadb74dd"
+    },
+    {
+      "name": "AUDIO ilegible: aviso Telegram",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        6800,
+        1980
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TG_INCIDENCIAS_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $env.TG_INCIDENCIAS_CHAT, text: '🎤 AUDIO QUE NO SE ENTIENDE\\n\\ncliente_id: ' + $json.cliente_id + '\\nDuración: ' + ($json.duracion == null ? 'desconocida' : $json.duracion + ' s') + '\\nMotivo: ' + ($json.motivo || 'sin motivo') + '\\n\\nMaría le ha pedido que lo repita. La conversación NO está pausada.\\n👉 https://wa.me/' + $json.cliente_id }) }}",
+        "options": {}
+      },
+      "onError": "continueRegularOutput",
+      "id": "ec6e2c37-97be-4646-a067-8e6ae4e80651"
+    },
+    {
+      "name": "AUDIO ilegible: ¿sigue activo?",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        6140,
+        1980
+      ],
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/conversaciones?cliente_id=eq.{{ $('AUDIO decidir').first().json.cliente_id }}&select=*",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput",
+      "id": "733fdb5f-6b95-47f3-be4c-9500cc36fc6f"
+    },
+    {
+      "name": "AUDIO ilegible: ¿sigue activo? (adaptar)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6360,
+        1980
+      ],
+      "parameters": {
+        "jsCode": "// Dos decisiones distintas, que antes eran una:\n//   callar  -> silenciada o bloqueada: ni mensaje al cliente ni aviso al\n//             dueño. Silenciar significa exactamente eso.\n//   pausado -> hay un humano al mando: el aviso SI se manda (le interesa\n//             enterarse), pero el mensaje automatico al cliente no.\nconst r = $json || {};\nlet c = r.body;\nif (typeof c === 'string') { try { c = JSON.parse(c); } catch (e) {} }\nconst fila = Array.isArray(c) && c.length ? c[0] : null;\n\n// Si no se puede leer, asumimos NO pausado y NO callado, igual que en el\n// resto del flujo: un aviso de mas cuesta menos que un cliente sin atender.\nconst activo = fila ? fila.bot_activo !== false : true;\nconst callar = !!(fila && (fila.silenciada === true || fila.bloqueada === true));\n\nconst canalOk = $('Resolver canal').first().json.canal_bot_activo !== false;\nreturn [{ json: { pausado: (activo && canalOk) ? 0 : 1, callar: callar ? 'si' : 'no' } }];"
+      },
+      "id": "f9a9afa8-b9d5-427a-b5cc-25612c204980"
+    },
+    {
+      "name": "AUDIO ilegible: ¿avisar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        6580,
+        1980
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c-ileg-callar",
+              "leftValue": "={{ $json.callar }}",
+              "rightValue": "no",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "53a80865-6fad-4e8d-9bfd-b46593dd0176"
+    },
+    {
+      "name": "AUDIO ilegible: silenciada, ni pio",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        6800,
+        2280
+      ],
+      "parameters": {},
+      "id": "6ce1fb60-254c-4a36-b9bc-380edfdaf784"
+    },
+    {
+      "name": "AUDIO ilegible: ¿enviar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        7020,
+        1980
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c-ileg-activo",
+              "leftValue": "={{ $json.pausado }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "4c242b58-b76b-4bcc-b013-498241710ef2"
+    },
+    {
+      "name": "AUDIO ilegible: preparar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        7240,
+        1880
+      ],
+      "parameters": {
+        "jsCode": "// Contrato del punto unico de salida (regla 2).\nconst d = $('AUDIO decidir').first().json;\nreturn [{ json: {\n  accion: 'texto',\n  cliente_id: d.cliente_id,\n  // Maria es HUMANA para el cliente. Ni una palabra que suene a maquina:\n  // nada de \"no puedo procesar audios\". Una sola frase, y se calla.\n  texto: 'Perdona, no me llegó bien tu audio, ¿me lo puedes repetir o escribir?',\n  autor: 'bot',\n} }];"
+      },
+      "id": "ac019f89-2076-4597-8c12-5f0e5e35f6aa"
+    },
+    {
+      "name": "AUDIO ilegible: ENVIAR",
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1,
+      "position": [
+        7460,
+        1880
+      ],
+      "parameters": {
+        "workflowId": "CYgKApb26ARGlhVZ",
+        "options": {
+          "waitForSubWorkflow": true
+        }
+      },
+      "id": "8aa0961b-34b3-4259-87d2-fe17db9e6ca6"
+    },
+    {
+      "name": "AUDIO ilegible: pausado, no enviar",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        7240,
+        2100
+      ],
+      "parameters": {},
+      "id": "c6cf1f5c-ad3b-415d-a194-29ebf89e88c1"
+    },
+    {
+      "name": "Marcar interesado",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3900,
+        620
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/conversacion_productos?on_conflict=conversacion_id,producto",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=ignore-duplicates,return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ conversacion_id: $('Interpretar estado').first().json.conversacion_id, producto: $('Decidir ficha').first().json.id_producto, estado: 'interesado' }) }}",
+        "options": {}
+      },
+      "onError": "continueRegularOutput",
+      "id": "571ed6e5-57e6-4b73-a568-e5291798ff92"
+    },
+    {
+      "name": "Marcar pedido pendiente",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3900,
+        900
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/conversacion_productos?on_conflict=conversacion_id,producto",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=merge-duplicates,return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ conversacion_id: $('Interpretar estado').first().json.conversacion_id, producto: $('Preparar pedido').first().json.producto_id, estado: 'pendiente' }) }}",
+        "options": {}
+      },
+      "onError": "continueRegularOutput",
+      "id": "0bccfc3a-e2f9-4c9a-81f3-c47aa8d21e4b"
+    },
+    {
+      "name": "¿Producto identificado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        3680,
+        900
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "p1",
+              "leftValue": "={{ $('Preparar pedido').first().json.producto_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "7b7e04d9-3df8-4710-bfdf-f363b4ee58f9"
+    },
+    {
+      "name": "Pedido sin producto identificado",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        3900,
+        1080
+      ],
+      "parameters": {},
+      "id": "ace75afb-dbc2-4ddc-95a2-e3480063815a"
+    },
+    {
+      "name": "Buscar canal",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1120,
+        300
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/canales?identificador=eq.{{ $json.phone_number_id }}&select=*",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "id": "33ccac0e-00a8-4af7-977d-f4e780686e48"
+    },
+    {
+      "name": "Resolver canal",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1340,
+        300
+      ],
+      "parameters": {
+        "jsCode": "// De que numero nuestro viene este mensaje.\n//\n// La llave es el phone_number_id que manda Meta en metadata. NO se\n// deduce del texto ni del pais del cliente: es el unico dato fiable de\n// quien recibio el mensaje.\nconst ev = $('Normalizar evento').first().json;\nconst r = $json || {};\nlet cuerpo = r.body;\nif (typeof cuerpo === 'string') { try { cuerpo = JSON.parse(cuerpo); } catch (e) {} }\nconst fila = Array.isArray(cuerpo) && cuerpo.length ? cuerpo[0] : null;\n\nreturn [{ json: Object.assign({}, ev, {\n  canal_id:        fila ? fila.id : null,\n  canal_nombre:    fila ? fila.nombre : null,\n  canal_activo:    fila ? fila.activo !== false : false,\n  // Interruptor de Maria PARA ESTE NUMERO (canales.bot_activo). Distinto\n  // de `activo`: el canal sigue en servicio y un humano puede escribir;\n  // lo unico que se calla es Maria. Sin fila -> true, porque un numero\n  // desconocido ya se corta antes por canal_desconocido.\n  canal_bot_activo: fila ? fila.bot_activo !== false : true,\n  canal_prompt:    fila ? (fila.prompt_url || null) : null,\n  canal_hoja:      fila ? (fila.catalogo_hoja || null) : null,\n  canal_ventana:   fila ? fila.ventana_horas : null,\n  // Numero DESCONOCIDO: no esta dado de alta en `canales`. El mensaje\n  // se guarda igual (regla 1) y se avisa. Nunca se pierde nada por no\n  // tener una fila de configuracion.\n  canal_desconocido: fila ? 'no' : 'si',\n  // Nuestro es el numero que esta dado de alta en `canales`, punto.\n  // Antes se comparaba contra $env.WA_PHONE_NUMBER_ID y el canal 2\n  // salia siempre como ajeno.\n  numero_propio: !!fila,\n}) }];"
+      },
+      "id": "f0b7f5f4-9564-44dc-be23-3dc8cf0386a3"
+    },
+    {
+      "name": "¿Canal conocido?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1560,
+        300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "ck",
+              "leftValue": "={{ $json.canal_desconocido }}",
+              "rightValue": "no",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a84f360b-a754-41ee-920b-e3de420569a9"
+    },
+    {
+      "name": "Avisar canal desconocido",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1560,
+        520
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TG_INCIDENCIAS_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $env.TG_INCIDENCIAS_CHAT, text: '📡 MENSAJE DE UN NÚMERO SIN DAR DE ALTA\\n\\nphone_number_id: ' + $json.phone_number_id + '\\nCliente: ' + $json.cliente_id + '\\n\\nEl mensaje SE HA GUARDADO igual, pero María no va a responder porque no sé de qué canal es.\\n\\nDalo de alta en el inbox → Canales, con ese Phone Number ID.' }) }}",
+        "options": {}
+      },
+      "id": "66d56cd2-7e74-418e-a151-bb3c13997d5d"
+    },
+    {
+      "name": "Leer prompt del canal",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2784,
+        760
+      ],
+      "onError": "continueRegularOutput",
+      "parameters": {
+        "url": "={{ $('Resolver canal').first().json.canal_prompt || 'https://example.invalid/sin-prompt' }}",
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "id": "2b3ccdf4-a1c4-457c-b757-6fcae499c2e1"
+    },
+    {
+      "name": "Componer prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2984,
+        660
+      ],
+      "parameters": {
+        "jsCode": "// PROMPT COMUN + PROMPT DEL CANAL, en este orden y nunca al reves.\n//\n// El comun manda: dice quien es Maria, como habla y que no puede hacer.\n// El del canal solo aporta DATOS de ese mercado (moneda, entrega,\n// saludo). Va detras y etiquetado como datos, para que si alguien\n// escribe una regla ahi por error, quede claro que no es su sitio.\nconst comun = String($('Leer Prompt').first().json.data || $('Leer Prompt').first().json || '');\n\nlet canal = '';\ntry {\n  const r = $('Leer prompt del canal').first().json;\n  const codigo = r.statusCode || 0;\n  if (codigo >= 200 && codigo < 300) canal = String(r.body || '');\n} catch (e) {}\n\n// Un Doc de canal que crece es la senal de que se estan colando reglas\n// donde solo deberian ir datos. 2000 caracteres es mucho para \"moneda,\n// entrega y saludo\": si se pasa, se avisa en el log de la ejecucion.\nconst AVISO_LARGO = 2000;\nconst demasiado = canal.length > AVISO_LARGO;\n\nconst nombreCanal = $('Resolver canal').first().json.canal_nombre || 'sin canal';\n\nconst partes = [comun.trim()];\nif (canal.trim()) {\n  partes.push(\n    '\\n\\n=== DATOS DE ESTE CANAL: ' + nombreCanal + ' ===',\n    'Lo que sigue son DATOS del mercado en el que estas atendiendo ahora',\n    '(pais, moneda, entrega, saludo). Si algo de aqui contradijera las',\n    'reglas de arriba, mandan las de arriba.',\n    '',\n    canal.trim(),\n  );\n}\n\nreturn [{ json: {\n  data: partes.join('\\n'),\n  _canal: nombreCanal,\n  _largo_comun: comun.length,\n  _largo_canal: canal.length,\n  _aviso: demasiado ? 'El prompt del canal pasa de ' + AVISO_LARGO + ' caracteres: probablemente lleva reglas que deberian estar en el comun.' : null,\n} }];"
+      },
+      "id": "4fbefa02-971a-49c1-b077-1ee682672899"
+    }
+  ],
+  "connections": {
+    "Webhook verificación (GET)": {
+      "main": [
+        [
+          {
+            "node": "¿Token de verificación correcto?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Token de verificación correcto?": {
+      "main": [
+        [
+          {
+            "node": "Devolver challenge",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Rechazar verificación (403)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook mensajes (POST)": {
+      "main": [
+        [
+          {
+            "node": "Responder 200 a Meta",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Validar firma",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar firma": {
+      "main": [
+        [
+          {
+            "node": "¿Firma válida?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Firma válida?": {
+      "main": [
+        [
+          {
+            "node": "Normalizar evento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Descartar: no autorizado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar evento": {
+      "main": [
+        [
+          {
+            "node": "¿Qué tipo de evento?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Qué tipo de evento?": {
+      "main": [
+        [
+          {
+            "node": "Buscar canal",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Traducir estado de Meta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Evento sin reconocer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Asegurar conversación": {
+      "main": [
+        [
+          {
+            "node": "Preparar fila del mensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar fila del mensaje": {
+      "main": [
+        [
+          {
+            "node": "Guardar mensaje entrante",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar mensaje entrante": {
+      "main": [
+        [
+          {
+            "node": "MEDIA ¿trae adjunto?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Traducir estado de Meta": {
+      "main": [
+        [
+          {
+            "node": "¿Tiene equivalente?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Tiene equivalente?": {
+      "main": [
+        [
+          {
+            "node": "Actualizar estado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Sin equivalente (falta 'fallido' en el CHECK)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Datos del mensaje guardado": {
+      "main": [
+        [
+          {
+            "node": "Leer estado de la conversación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer estado de la conversación": {
+      "main": [
+        [
+          {
+            "node": "Interpretar estado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Interpretar estado": {
+      "main": [
+        [
+          {
+            "node": "¿El bot atiende a este cliente?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿El bot atiende a este cliente?": {
+      "main": [
+        [
+          {
+            "node": "Bot al mando",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Humano al mando: no responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Bot al mando": {
+      "main": [
+        [
+          {
+            "node": "Leer fichas enviadas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer fichas enviadas": {
+      "main": [
+        [
+          {
+            "node": "Variables",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Variables": {
+      "main": [
+        [
+          {
+            "node": "Guardar en buffer",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar en buffer": {
+      "main": [
+        [
+          {
+            "node": "¿Ritmo normal?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Ritmo normal?": {
+      "main": [
+        [
+          {
+            "node": "Esperar 6 segundos",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Esperar 6 segundos": {
+      "main": [
+        [
+          {
+            "node": "¿Llegaron más mensajes?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Llegaron más mensajes?": {
+      "main": [
+        [
+          {
+            "node": "¿Soy el último?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Soy el último?": {
+      "main": [
+        [
+          {
+            "node": "Vaciar buffer",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    },
+    "Vaciar buffer": {
+      "main": [
+        [
+          {
+            "node": "Juntar mensajes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Juntar mensajes": {
+      "main": [
+        [
+          {
+            "node": "Leer contexto crudo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer contexto crudo": {
+      "main": [
+        [
+          {
+            "node": "Leer contexto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer contexto": {
+      "main": [
+        [
+          {
+            "node": "¿Esperando datos?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Esperando datos?": {
+      "main": [
+        [
+          {
+            "node": "Añadir contexto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Añadir contexto": {
+      "main": [
+        [
+          {
+            "node": "Preparar: leído + escribiendo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer Prompt": {
+      "main": [
+        [
+          {
+            "node": "Leer prompt del canal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer Catálogo": {
+      "main": [
+        [
+          {
+            "node": "Preparar Catálogo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar Catálogo": {
+      "main": [
+        [
+          {
+            "node": "Decidir ficha",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Decidir ficha": {
+      "main": [
+        [
+          {
+            "node": "¿Ficha directa?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar: leído + escribiendo": {
+      "main": [
+        [
+          {
+            "node": "MARCAR leído + escribiendo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MARCAR leído + escribiendo": {
+      "main": [
+        [
+          {
+            "node": "Leer Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Ficha directa?": {
+      "main": [
+        [
+          {
+            "node": "Check ficha",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check ficha": {
+      "main": [
+        [
+          {
+            "node": "Check ficha (adaptar)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check ficha (adaptar)": {
+      "main": [
+        [
+          {
+            "node": "Ficha ya?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ficha ya?": {
+      "main": [
+        [
+          {
+            "node": "Preparar: ficha directa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar: ficha directa": {
+      "main": [
+        [
+          {
+            "node": "ENVIAR ficha directa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ENVIAR ficha directa": {
+      "main": [
+        [
+          {
+            "node": "Marcar ficha directa",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Filtro Seguridad",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Hay que escalar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Hay que escalar?": {
+      "main": [
+        [
+          {
+            "node": "Preparar aviso",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar aviso": {
+      "main": [
+        [
+          {
+            "node": "Avisar al dueño",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fila incidencia",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fila incidencia": {
+      "main": [
+        [
+          {
+            "node": "Guardar incidencia",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtro Seguridad": {
+      "main": [
+        [
+          {
+            "node": "¿Pedido completo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Pedido completo?": {
+      "main": [
+        [
+          {
+            "node": "Preparar pedido",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "¿Sigue activo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar pedido": {
+      "main": [
+        [
+          {
+            "node": "Guardar pedido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar pedido": {
+      "main": [
+        [
+          {
+            "node": "¿Producto identificado?",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Preparar: gracias",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar: gracias": {
+      "main": [
+        [
+          {
+            "node": "ENVIAR gracias",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ENVIAR gracias": {
+      "main": [
+        [
+          {
+            "node": "Apagar tras el pedido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apagar tras el pedido": {
+      "main": [
+        [
+          {
+            "node": "Avisar al dueño - Pedido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Avisar al dueño - Pedido": {
+      "main": [
+        [
+          {
+            "node": "Preparar evento Meta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar evento Meta": {
+      "main": [
+        [
+          {
+            "node": "¿Vino de un anuncio?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Vino de un anuncio?": {
+      "main": [
+        [
+          {
+            "node": "Enviar a Meta CAPI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Sigue activo?": {
+      "main": [
+        [
+          {
+            "node": "¿Sigue activo? (adaptar)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Sigue activo? (adaptar)": {
+      "main": [
+        [
+          {
+            "node": "¿Enviar todavía?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Enviar todavía?": {
+      "main": [
+        [
+          {
+            "node": "¿Hay que responder?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay que responder?": {
+      "main": [
+        [
+          {
+            "node": "Procesar Foto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Procesar Foto": {
+      "main": [
+        [
+          {
+            "node": "¿Es mensaje comercial?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Es mensaje comercial?": {
+      "main": [
+        [
+          {
+            "node": "Check oferta",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Preparar envío humano",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check oferta": {
+      "main": [
+        [
+          {
+            "node": "Check oferta (adaptar)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check oferta (adaptar)": {
+      "main": [
+        [
+          {
+            "node": "Oferta ya?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Oferta ya?": {
+      "main": [
+        [
+          {
+            "node": "Preparar: oferta con foto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar: oferta con foto": {
+      "main": [
+        [
+          {
+            "node": "ENVIAR oferta con foto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar envío humano": {
+      "main": [
+        [
+          {
+            "node": "Check final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check final": {
+      "main": [
+        [
+          {
+            "node": "Check final (adaptar)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check final (adaptar)": {
+      "main": [
+        [
+          {
+            "node": "Enviar ya?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar ya?": {
+      "main": [
+        [
+          {
+            "node": "Preparar: respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar: respuesta": {
+      "main": [
+        [
+          {
+            "node": "ENVIAR respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Chat Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MEDIA ¿trae adjunto?": {
+      "main": [
+        [
+          {
+            "node": "MEDIA pedir URL a Graph",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Datos del mensaje guardado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MEDIA pedir URL a Graph": {
+      "main": [
+        [
+          {
+            "node": "MEDIA descargar",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "MEDIA fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MEDIA descargar": {
+      "main": [
+        [
+          {
+            "node": "MEDIA preparar",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "MEDIA fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MEDIA preparar": {
+      "main": [
+        [
+          {
+            "node": "MEDIA subir a Storage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MEDIA subir a Storage": {
+      "main": [
+        [
+          {
+            "node": "MEDIA buscar mensaje",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "MEDIA fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MEDIA buscar mensaje": {
+      "main": [
+        [
+          {
+            "node": "MEDIA fila de adjunto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MEDIA fila de adjunto": {
+      "main": [
+        [
+          {
+            "node": "MEDIA ¿hay mensaje?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MEDIA ¿hay mensaje?": {
+      "main": [
+        [
+          {
+            "node": "MEDIA guardar adjunto",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "MEDIA sin mensaje al que colgarse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MEDIA sin mensaje al que colgarse": {
+      "main": [
+        [
+          {
+            "node": "Datos del mensaje guardado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MEDIA guardar adjunto": {
+      "main": [
+        [
+          {
+            "node": "MEDIA marcar en el mensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MEDIA marcar en el mensaje": {
+      "main": [
+        [
+          {
+            "node": "TRANSCRIBIR ¿es audio?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TRANSCRIBIR ¿es audio?": {
+      "main": [
+        [
+          {
+            "node": "TRANSCRIBIR bajar de Storage",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Datos del mensaje guardado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TRANSCRIBIR bajar de Storage": {
+      "main": [
+        [
+          {
+            "node": "TRANSCRIBIR con Whisper",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "MEDIA fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TRANSCRIBIR con Whisper": {
+      "main": [
+        [
+          {
+            "node": "TRANSCRIBIR leer resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TRANSCRIBIR leer resultado": {
+      "main": [
+        [
+          {
+            "node": "TRANSCRIBIR guardar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "TRANSCRIBIR guardar": {
+      "main": [
+        [
+          {
+            "node": "AUDIO decidir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MEDIA fallo": {
+      "main": [
+        [
+          {
+            "node": "AUDIO decidir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AUDIO decidir": {
+      "main": [
+        [
+          {
+            "node": "AUDIO ¿qué hacemos?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AUDIO ¿qué hacemos?": {
+      "main": [
+        [
+          {
+            "node": "AUDIO corto: silencio",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AUDIO ilegible: ¿sigue activo?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Datos del mensaje guardado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AUDIO ilegible: ¿sigue activo?": {
+      "main": [
+        [
+          {
+            "node": "AUDIO ilegible: ¿sigue activo? (adaptar)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AUDIO ilegible: ¿sigue activo? (adaptar)": {
+      "main": [
+        [
+          {
+            "node": "AUDIO ilegible: ¿avisar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AUDIO ilegible: ¿avisar?": {
+      "main": [
+        [
+          {
+            "node": "AUDIO ilegible: aviso Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AUDIO ilegible: silenciada, ni pio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AUDIO ilegible: aviso Telegram": {
+      "main": [
+        [
+          {
+            "node": "AUDIO ilegible: ¿enviar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AUDIO ilegible: ¿enviar?": {
+      "main": [
+        [
+          {
+            "node": "AUDIO ilegible: preparar",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "AUDIO ilegible: pausado, no enviar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AUDIO ilegible: preparar": {
+      "main": [
+        [
+          {
+            "node": "AUDIO ilegible: ENVIAR",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar ficha directa": {
+      "main": [
+        [
+          {
+            "node": "Marcar interesado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Producto identificado?": {
+      "main": [
+        [
+          {
+            "node": "Marcar pedido pendiente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Pedido sin producto identificado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar canal": {
+      "main": [
+        [
+          {
+            "node": "Resolver canal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolver canal": {
+      "main": [
+        [
+          {
+            "node": "¿Canal conocido?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Canal conocido?": {
+      "main": [
+        [
+          {
+            "node": "Asegurar conversación",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Avisar canal desconocido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Avisar canal desconocido": {
+      "main": [
+        [
+          {
+            "node": "Asegurar conversación",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer prompt del canal": {
+      "main": [
+        [
+          {
+            "node": "Componer prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Componer prompt": {
+      "main": [
+        [
+          {
+            "node": "Leer Catálogo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  }
+}

@@ -1,0 +1,51 @@
+# ─────────────────────────────────────────────────────────────────────
+#  LumaBot — qué NO sube al repo
+#
+#  Regla: si un secreto entra en el historial, borrarlo después no
+#  sirve de nada. Ante la duda, se excluye.
+# ─────────────────────────────────────────────────────────────────────
+
+# ── Secretos y entorno ───────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.env
+wa.env
+
+# El plan del 21 de agosto lleva el WA_VERIFY_TOKEN VIVO escrito en
+# claro (línea 53). Mientras no se redacte, no sube.
+ESTADO-Plan-LumaBot-21ago.md
+
+# ── Respaldos: llevan wa.env con service_role, token de Meta y las
+#    contraseñas de Postgres ───────────────────────────────────────────
+respaldo-preactivacion/
+*.dump
+*.sql.gz
+
+# ── Copias de seguridad de workflows y ficheros ──────────────────────
+backup-*.json
+*.bak
+*.bak-*
+*.tar.gz
+
+# ── Dependencias y compilados ────────────────────────────────────────
+node_modules/
+dist/
+*.tsbuildinfo
+
+# ── Basura de trabajo ────────────────────────────────────────────────
+dev.log
+*.log
+.envio-payload.json
+inbox/_
+.DS_Store
+Thumbs.db
+
+# ── Artefactos de trabajo del 22/08 ──────────────────────────────────
+# Los pasos intermedios ya no hacen falta: el estado que está VIVO en
+# n8n vive en workflows/, exportado del propio servidor.
+fase8-*.json
+fix-*.json
+rename-3b.json
+inbox/n8n-webhook-envio.json
+inbox/fase5-*.json
