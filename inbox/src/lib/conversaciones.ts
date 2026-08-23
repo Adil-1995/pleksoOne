@@ -1,6 +1,6 @@
 import { supabase } from './supabase'
 import { avisarPurchase } from './envio'
-import type { Etiqueta, EstadoProducto, Canal } from '@/tipos'
+import type { Etiqueta, EstadoProducto, Canal, MarcaRevision } from '@/tipos'
 
 /**
  * Cambios sobre una conversación que el equipo hace desde el inbox.
@@ -182,6 +182,60 @@ function traducirCanal(mensaje: string): string {
   }
   if (/row-level security/i.test(mensaje)) {
     return 'Falta la policy de escritura en `canales`. Ejecuta 08-multicanal.sql.'
+  }
+  return mensaje
+}
+
+// ── Marca de «revisado hasta aquí» ───────────────────────────────────────
+/**
+ * Ver 11-marca-revision.sql. Son como mucho DOS filas —una por canal—, así
+ * que se leen todas de golpe y se filtran en memoria. Paginar dos filas
+ * sería más código que datos.
+ *
+ * Si la tabla todavía no existe (SQL sin ejecutar) se devuelve vacío en vez
+ * de reventar: la lista tiene que seguir pintándose sin la marca, igual que
+ * hace con las etiquetas y con los canales.
+ */
+export async function leerMarcas(): Promise<MarcaRevision[]> {
+  const { data, error } = await supabase.from('marcas_revision').select('*')
+  if (error) {
+    if (esTablaAusente(error)) return []
+    throw new Error(error.message)
+  }
+  return (data ?? []) as MarcaRevision[]
+}
+
+/**
+ * Poner la marca. UNA escritura, no dos.
+ *
+ * El upsert va sobre `canal_id`, que es la clave primaria: marcar otra
+ * conversación del mismo canal sustituye la fila. NO se borra antes la
+ * anterior a propósito — borrar y volver a insertar deja un hueco en el que
+ * no hay ninguna marca, y si la segunda mitad falla te quedas sin ninguna.
+ *
+ * `marcado_por` y `marcado_en` no se mandan: los pone el trigger desde
+ * auth.uid(). Mandarlos desde el navegador sería dejar que cualquiera
+ * firmara con el nombre de otro.
+ */
+export async function ponerMarca(canalId: number, conversacionId: number): Promise<void> {
+  const { error } = await supabase
+    .from('marcas_revision')
+    .upsert({ canal_id: canalId, conversacion_id: conversacionId }, { onConflict: 'canal_id' })
+  if (error) throw new Error(traducirMarca(error.message))
+}
+
+/** Quitar la marca de un canal. Borrar la fila ES quitarla. */
+export async function quitarMarca(canalId: number): Promise<void> {
+  const { error } = await supabase.from('marcas_revision').delete().eq('canal_id', canalId)
+  if (error) throw new Error(traducirMarca(error.message))
+}
+
+function traducirMarca(mensaje: string): string {
+  if (/relation .*marcas_revision.* does not exist|schema cache/i.test(mensaje)) {
+    return 'Falta la tabla `marcas_revision`. Ejecuta 11-marca-revision.sql en Supabase.'
+  }
+  if (/row-level security/i.test(mensaje)) {
+    return 'Falta la policy de escritura en `marcas_revision`. Ejecuta 11-marca-revision.sql.'
   }
   return mensaje
 }

@@ -81,6 +81,20 @@ interface EstadoUI {
   ultimaAbierta: string | null
   setUltimaAbierta: (clienteId: string | null) => void
 
+  /**
+   * Fila con el panel de la marca destapado al deslizar, o null.
+   *
+   * Vive en el store y no dentro de la fila para que solo pueda haber UNA
+   * abierta: al deslizar otra, la primera se cierra sola. Con un estado por
+   * fila se quedarían todas las que hubieras tocado medio abiertas.
+   *
+   * NO se persiste, y aquí sí importa la diferencia con la marca: esto es
+   * un gesto a medias, no una decisión. La marca va a Supabase; esto muere
+   * al recargar, que es lo que tiene que pasar.
+   */
+  deslizada: string | null
+  setDeslizada: (clienteId: string | null) => void
+
   /** Índice resaltado en la lista, para navegar con j/k. */
   resaltado: number
   setResaltado: (i: number) => void
@@ -139,6 +153,9 @@ export const useUI = create<EstadoUI>((set) => ({
 
   ultimaAbierta: null,
   setUltimaAbierta: (clienteId) => set({ ultimaAbierta: clienteId }),
+
+  deslizada: null,
+  setDeslizada: (clienteId) => set({ deslizada: clienteId }),
 
   limpiarFiltros: () =>
     set({

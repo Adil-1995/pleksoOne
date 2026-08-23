@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { ponerBot } from '@/lib/envio'
@@ -7,8 +7,9 @@ import {
   ponerEtiqueta, quitarEtiqueta, contarPorEtiqueta,
   ponerFavorita, ponerSilenciada, ponerFijada,
   marcarProducto, quitarProducto, crearCanal, editarCanal,
+  leerMarcas, ponerMarca, quitarMarca,
 } from '@/lib/conversaciones'
-import type { Canal, Conversacion, Mensaje, Adjunto, Etiqueta, EstadoProducto } from '@/tipos'
+import type { Canal, Conversacion, Mensaje, Adjunto, Etiqueta, EstadoProducto, MarcaRevision } from '@/tipos'
 
 export const claves = {
   canales: ['canales'] as const,
@@ -17,6 +18,7 @@ export const claves = {
   cuentaEtiquetas: ['etiquetas', 'cuenta'] as const,
   mensajes: (clienteId: string) => ['mensajes', clienteId] as const,
   conversacionesCorruptas: ['conversaciones-corruptas'] as const,
+  marcas: ['marcas-revision'] as const,
 }
 
 // ── Canales ──────────────────────────────────────────────────────────────
@@ -148,6 +150,61 @@ export function useConversacionesCorruptas(): Conversacion[] {
     staleTime: Infinity,
   })
   return data ?? []
+}
+
+// ── Marca de «revisado hasta aquí» ───────────────────────────────────────
+/**
+ * Las marcas puestas ahora mismo, indexadas por conversación.
+ *
+ * Un Map y no un array porque la lista pregunta «¿está marcada esta fila?»
+ * 341 veces por pintado. Son como mucho dos entradas.
+ */
+export function useMarcas() {
+  const { data } = useQuery({
+    queryKey: claves.marcas,
+    queryFn: leerMarcas,
+    staleTime: 60_000,
+  })
+  return useMemo(() => {
+    const m = new Map<number, MarcaRevision>()
+    for (const x of data ?? []) m.set(x.conversacion_id, x)
+    return m
+  }, [data])
+}
+
+/**
+ * Poner o quitar la marca. Optimista, como todo lo que se toca con el dedo.
+ *
+ * El optimismo tiene que reproducir la regla de la base: al marcar una
+ * conversación se quitan de la caché las marcas de ESE canal antes de meter
+ * la nueva. Si solo se añadiera, durante el vuelo se verían dos rayas
+ * amarillas y el usuario pensaría que la regla no funciona — cuando en la
+ * base nunca ha llegado a haber dos.
+ */
+export function usePonerMarca() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ canalId, conversacionId }:
+      { canalId: number; conversacionId: number | null }) =>
+      conversacionId === null ? quitarMarca(canalId) : ponerMarca(canalId, conversacionId),
+    onMutate: async ({ canalId, conversacionId }) => {
+      await qc.cancelQueries({ queryKey: claves.marcas })
+      const antes = qc.getQueryData<MarcaRevision[]>(claves.marcas)
+      qc.setQueryData<MarcaRevision[]>(claves.marcas, (v) => {
+        const otros = (v ?? []).filter((m) => m.canal_id !== canalId)
+        if (conversacionId === null) return otros
+        return [...otros, {
+          canal_id: canalId, conversacion_id: conversacionId,
+          marcado_por: null, marcado_en: new Date().toISOString(),
+        }]
+      })
+      return { antes }
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.antes) qc.setQueryData(claves.marcas, ctx.antes)
+    },
+    onSettled: () => { qc.invalidateQueries({ queryKey: claves.marcas }) },
+  })
 }
 
 // ── Etiquetas ────────────────────────────────────────────────────────────
@@ -441,6 +498,15 @@ export function useRealtime(clienteAbierto?: string) {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'canales' },
         () => { qc.invalidateQueries({ queryKey: claves.canales }) },
+      )
+      // La marca de «revisado hasta aquí» es de las que MÁS falta hacen
+      // aquí: se pidió para verla igual desde el móvil y desde el PC, y sin
+      // esto marcar en uno dejaría la raya vieja pintada en el otro. Dos
+      // rayas amarillas a la vez y la marca deja de ser de fiar.
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'marcas_revision' },
+        () => { qc.invalidateQueries({ queryKey: claves.marcas }) },
       )
       // Los productos los escribe n8n, no esta app: sin Realtime, un pedido
       // recién registrado no se vería aquí hasta recargar.

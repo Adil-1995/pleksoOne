@@ -536,10 +536,21 @@ export function aplicarFiltros(
 
   const q = busqueda.trim().toLowerCase()
   if (q) {
+    // Los DÍGITOS de lo que se ha escrito, aparte. Ahora que el número es lo
+    // que se ve en la lista, se busca copiándolo de ahí —o del aviso de
+    // Telegram, o del móvil— y viene con `+`, espacios o guiones. Sin esto,
+    // pegar «+52 1 559 193 7975» no encontraba nada mientras el número
+    // estaba delante en pantalla, y parecía que el buscador no funcionaba.
+    //
+    // Solo se usa si quedan 3 dígitos o más: con uno o dos, cualquier número
+    // los contiene y el resultado sería la lista entera.
+    const digitos = q.replace(/\D/g, '')
+    const porNumero = digitos.length >= 3
     out = out.filter(
       (c) =>
         (c.nombre ?? '').toLowerCase().includes(q) ||
         c.cliente_id.includes(q) ||
+        (porNumero && c.cliente_id.includes(digitos)) ||
         (c.ultimo_texto ?? '').toLowerCase().includes(q),
     )
   }

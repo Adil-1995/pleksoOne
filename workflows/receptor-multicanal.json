@@ -1242,7 +1242,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// PREPARAR PEDIDO\n// Ya no interpretamos la dirección. Cogemos el producto (que María sí sabe)\n// y le mandamos al dueño el texto tal cual lo escribió el cliente.\n\nconst salida = $('AI Agent').item.json.output || '';\nconst numero = $('Variables').first().json.telefono_real\n            || $('Variables').first().json.numero_cliente;\nconst nombreWa = $('Variables').first().json.nombre_cliente || '';\n\n// Lo que escribió el cliente en esta tanda (el buffer ya lo unió)\nconst datosCliente = ($('Juntar mensajes').first().json.texto_acumulado || '').trim();\n\n// Del bloque solo sacamos producto / cantidad / precio\nconst bloque = (salida.match(/\\[PEDIDO\\]([\\s\\S]*?)\\[\\/PEDIDO\\]/i) || [])[1] || '';\n// Funciona aunque María escriba todo el bloque en una sola línea:\n// se corta en la siguiente etiqueta conocida, no en el salto de línea.\nfunction campo(nombre) {\n  const re = new RegExp(\n    nombre + '\\\\s*:\\\\s*([\\\\s\\\\S]*?)(?=\\\\s*(?:producto|cantidad|precio|total)\\\\s*:|\\\\s*\\\\[\\\\/?PEDIDO|$)',\n    'i');\n  const m = bloque.match(re);\n  return m ? m[1].replace(/[\\s,;.]+$/, '').trim() : '';\n}\n\n// Normaliza el precio: \"$1,485\" -> 1485  (para poder sumar después)\nfunction soloNumero(v) {\n  const n = String(v || '').replace(/[^0-9.]/g, '').replace(/\\.(?=.*\\.)/g, '');\n  return n === '' ? '' : String(Math.round(parseFloat(n)));\n}\n\n// ── DE DONDE SALE EL PRODUCTO ────────────────────────────────────────\n// Nunca del texto del modelo a pelo. Se empareja contra el catalogo con\n// la MISMA normalizacion que usa \"Decidir ficha\", para que identificar\n// una ficha y registrar un pedido no puedan dar resultados distintos.\nfunction normalizar(t) {\n  return String(t || '').toLowerCase()\n    .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/[^a-z0-9ñ\\s]/g, ' ').replace(/\\s+/g, ' ').trim();\n}\n\n// OJO: aqui NO se excluyen los productos con ficha ya enviada, al reves\n// que en \"Decidir ficha\". Que el cliente que compra ya tuviera la ficha\n// es el caso NORMAL: excluirlo dejaria sin identificar justo los pedidos\n// buenos. Es el mismo error que ya nos comimos una vez con la ficha.\nfunction emparejar(texto) {\n  const t = normalizar(texto);\n  if (!t) return [];\n  const out = [];\n  for (const item of $('Leer Catálogo').all()) {\n    const f = item.json;\n    const id = String(f.id || \"\").trim();\n    if (!id) continue;\n    const claves = String(f.palabras_clave || '').split(',')\n      .map(normalizar).filter(s => s.length >= 4);\n    const nombre = normalizar(f.nombre);\n    if (nombre.length >= 4) claves.push(nombre);\n    claves.push(...nombre.split(' ').filter(s => s.length >= 6));\n    let largo = 0;\n    for (const c of claves) if (c && t.includes(c) && c.length > largo) largo = c.length;\n    if (largo > 0) out.push({ id, nombre: String(f.nombre).trim(), largo });\n  }\n  return out.sort((a, b) => b.largo - a.largo);\n}\n\n// Un empate es una duda, y una duda no se resuelve inventando.\nfunction unico(c) {\n  if (!c.length) return null;\n  if (c.length === 1) return c[0];\n  return c[0].largo > c[1].largo ? c[0] : null;\n}\n\n// Tres fuentes, de mas a menos fiable:\n//  1. Lo que el modelo puso en [PEDIDO] producto: — casi siempre copia el\n//     nombre del catalogo, solo que con la cantidad y el precio pegados.\n//  2. La ficha que recibio este cliente, si recibio UNA sola.\n//  3. Lo que escribio el cliente en esta tanda.\nlet elegido = unico(emparejar(campo('producto')));\n\nif (!elegido) {\n  let fichas = [];\n  try { fichas = String($('Variables').first().json.fichas || '')\n    .split(',').map(s => s.trim()).filter(Boolean); } catch (e) {}\n  if (fichas.length === 1) {\n    for (const item of $('Leer Catálogo').all()) {\n      if (String(item.json.id || \"\").trim() === fichas[0]) {\n        elegido = { id: fichas[0], nombre: String(item.json.nombre).trim() };\n        break;\n      }\n    }\n  }\n}\n\nif (!elegido) elegido = unico(emparejar(datosCliente));\n\nconst producto_id = elegido ? elegido.id : null;\n\n// PRECIO DEL CATALOGO, NUNCA DEL TEXTO DE MARIA.\n// El precio que dice el modelo vale como pista para el humano, jamas como\n// dato: si el value del Purchase sale de ahi, Meta optimiza con un numero\n// inventado. Sin producto identificado no hay precio, y sin precio no sale\n// el evento. Un hueco se ve; un importe falso no.\nlet precio_catalogo = null;\nif (producto_id) {\n  for (const item of $('Leer Catálogo').all()) {\n    if (String(item.json.id || '').trim() === String(producto_id)) {\n      const n = String(item.json.precio || '').replace(/[^0-9.]/g, '');\n      precio_catalogo = (n === '') ? null : parseFloat(n);\n      break;\n    }\n  }\n}\nconst producto = elegido ? elegido.nombre : '⚠️ No confirmado — ver conversación';\nconst cantidad = campo('cantidad') || '1';\nconst cantidad_num = parseInt(String(cantidad).replace(/[^0-9]/g, ''), 10) || 1;\nconst precioTexto = campo('precio') || 'No indicado';\nconst precio      = soloNumero(precioTexto) || precioTexto;\n\n// Enlace directo al chat del cliente\nconst soloDigitos = String(numero).replace(/\\D/g, '');\nconst enlaceChat = 'https://wa.me/' + soloDigitos;\n\n// Enlace al inbox (PleksOne). OJO con dos cosas:\n//  1. La ruta casa por cliente_id (Regla 3), NO por conversacion_id.\n//  2. Es hash router: sin la # no resuelve nada.\n// Se usa el cliente_id tal cual, sin pasarlo por soloDigitos: ese recorte\n// vale para wa.me, pero aqui cualquier cambio rompe el match exacto.\nconst clienteId = $('Variables').first().json.numero_cliente;\nconst enlaceInbox = 'https://inbox.ladoluminoso.com/#/c/' + clienteId;\n\nconst aviso = [\n  '🛒🛒🛒 *NUEVO PEDIDO* 🛒🛒🛒',\n  '📱 Cliente: ' + numero,\n  '📦 Producto: ' + producto,\n  '💬 Abrir chat: ' + enlaceChat,\n  '🗂️ Abrir en PleksOne: ' + enlaceInbox\n].join('\\n');\n\nconst confirmacion = [\n  '¡Listo! 🎉 Su pedido quedó registrado.',\n  '',\n  'Le llega a domicilio y paga en efectivo al recibirlo. Nuestro repartidor le marcará antes de llegar.',\n  '',\n  '¡Gracias por su compra! 😊'\n].join('\\n');\n\nreturn [{\n  json: {\n    numero_cliente: numero,\n    precio_texto: precioTexto,\n    nombre_wa: nombreWa,\n    enlace_chat: enlaceChat,\n    enlace_inbox: enlaceInbox,\n    producto, cantidad, precio,\n    precio_catalogo, cantidad_num,\n    // El id del catalogo. null = no se pudo identificar, y entonces\n    // NO se marca el producto: mejor un hueco que un dato inventado.\n    producto_id,\n    datos_cliente: datosCliente,\n    aviso_pedido: aviso,\n    confirmacion_cliente: confirmacion\n  }\n}];\n"
+        "jsCode": "// PREPARAR PEDIDO\n// Ya no interpretamos la dirección. Cogemos el producto (que María sí sabe)\n// y le mandamos al dueño el texto tal cual lo escribió el cliente.\n\nconst salida = $('AI Agent').item.json.output || '';\nconst numero = $('Variables').first().json.telefono_real\n            || $('Variables').first().json.numero_cliente;\nconst nombreWa = $('Variables').first().json.nombre_cliente || '';\n\n// Lo que escribió el cliente en esta tanda (el buffer ya lo unió)\nconst datosCliente = ($('Juntar mensajes').first().json.texto_acumulado || '').trim();\n\n// Del bloque solo sacamos producto / cantidad / precio\nconst bloque = (salida.match(/\\[PEDIDO\\]([\\s\\S]*?)\\[\\/PEDIDO\\]/i) || [])[1] || '';\n// Funciona aunque María escriba todo el bloque en una sola línea:\n// se corta en la siguiente etiqueta conocida, no en el salto de línea.\nfunction campo(nombre) {\n  const re = new RegExp(\n    nombre + '\\\\s*:\\\\s*([\\\\s\\\\S]*?)(?=\\\\s*(?:producto|cantidad|precio|total)\\\\s*:|\\\\s*\\\\[\\\\/?PEDIDO|$)',\n    'i');\n  const m = bloque.match(re);\n  return m ? m[1].replace(/[\\s,;.]+$/, '').trim() : '';\n}\n\n// Normaliza el precio: \"$1,485\" -> 1485  (para poder sumar después)\nfunction soloNumero(v) {\n  const n = String(v || '').replace(/[^0-9.]/g, '').replace(/\\.(?=.*\\.)/g, '');\n  return n === '' ? '' : String(Math.round(parseFloat(n)));\n}\n\n// ── DE DONDE SALE EL PRODUCTO ────────────────────────────────────────\n// Nunca del texto del modelo a pelo. Se empareja contra el catalogo con\n// la MISMA normalizacion que usa \"Decidir ficha\", para que identificar\n// una ficha y registrar un pedido no puedan dar resultados distintos.\nfunction normalizar(t) {\n  return String(t || '').toLowerCase()\n    .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/[^a-z0-9ñ\\s]/g, ' ').replace(/\\s+/g, ' ').trim();\n}\n\n// OJO: aqui NO se excluyen los productos con ficha ya enviada, al reves\n// que en \"Decidir ficha\". Que el cliente que compra ya tuviera la ficha\n// es el caso NORMAL: excluirlo dejaria sin identificar justo los pedidos\n// buenos. Es el mismo error que ya nos comimos una vez con la ficha.\nfunction emparejar(texto) {\n  const t = normalizar(texto);\n  if (!t) return [];\n  const out = [];\n  for (const item of $('Leer Catálogo').all()) {\n    const f = item.json;\n    const id = String(f.id || \"\").trim();\n    if (!id) continue;\n    const claves = String(f.palabras_clave || '').split(',')\n      .map(normalizar).filter(s => s.length >= 4);\n    const nombre = normalizar(f.nombre);\n    if (nombre.length >= 4) claves.push(nombre);\n    claves.push(...nombre.split(' ').filter(s => s.length >= 6));\n    let largo = 0;\n    for (const c of claves) if (c && t.includes(c) && c.length > largo) largo = c.length;\n    if (largo > 0) out.push({ id, nombre: String(f.nombre).trim(), largo });\n  }\n  return out.sort((a, b) => b.largo - a.largo);\n}\n\n// Un empate es una duda, y una duda no se resuelve inventando.\nfunction unico(c) {\n  if (!c.length) return null;\n  if (c.length === 1) return c[0];\n  return c[0].largo > c[1].largo ? c[0] : null;\n}\n\n// Tres fuentes, de mas a menos fiable:\n//  1. Lo que el modelo puso en [PEDIDO] producto: — casi siempre copia el\n//     nombre del catalogo, solo que con la cantidad y el precio pegados.\n//  2. La ficha que recibio este cliente, si recibio UNA sola.\n//  3. Lo que escribio el cliente en esta tanda.\nlet elegido = unico(emparejar(campo('producto')));\n\nif (!elegido) {\n  let fichas = [];\n  try { fichas = String($('Variables').first().json.fichas || '')\n    .split(',').map(s => s.trim()).filter(Boolean); } catch (e) {}\n  if (fichas.length === 1) {\n    for (const item of $('Leer Catálogo').all()) {\n      if (String(item.json.id || \"\").trim() === fichas[0]) {\n        elegido = { id: fichas[0], nombre: String(item.json.nombre).trim() };\n        break;\n      }\n    }\n  }\n}\n\nif (!elegido) elegido = unico(emparejar(datosCliente));\n\nconst producto_id = elegido ? elegido.id : null;\n\n// PRECIO DEL CATALOGO, NUNCA DEL TEXTO DE MARIA.\n// El precio que dice el modelo vale como pista para el humano, jamas como\n// dato: si el value del Purchase sale de ahi, Meta optimiza con un numero\n// inventado. Sin producto identificado no hay precio, y sin precio no sale\n// el evento. Un hueco se ve; un importe falso no.\nlet precio_catalogo = null;\nif (producto_id) {\n  for (const item of $('Leer Catálogo').all()) {\n    if (String(item.json.id || '').trim() === String(producto_id)) {\n      const n = String(item.json.precio || '').replace(/[^0-9.]/g, '');\n      precio_catalogo = (n === '') ? null : parseFloat(n);\n      break;\n    }\n  }\n}\nconst producto = elegido ? elegido.nombre : '⚠️ No confirmado — ver conversación';\nconst cantidad = campo('cantidad') || '1';\nconst cantidad_num = parseInt(String(cantidad).replace(/[^0-9]/g, ''), 10) || 1;\nconst precioTexto = campo('precio') || 'No indicado';\nconst precio      = soloNumero(precioTexto) || precioTexto;\n\n// Enlace directo al chat del cliente\nconst soloDigitos = String(numero).replace(/\\D/g, '');\nconst enlaceChat = 'https://wa.me/' + soloDigitos;\n\n// Enlace al inbox (PleksOne). OJO con dos cosas:\n//  1. La ruta casa por cliente_id (Regla 3), NO por conversacion_id.\n//  2. Es hash router: sin la # no resuelve nada.\n// Se usa el cliente_id tal cual, sin pasarlo por soloDigitos: ese recorte\n// vale para wa.me, pero aqui cualquier cambio rompe el match exacto.\nconst clienteId = $('Variables').first().json.numero_cliente;\nconst enlaceInbox = 'https://inbox.ladoluminoso.com/#/c/' + clienteId;\n\nconst aviso = [\n  '🛒🛒🛒 *NUEVO PEDIDO* 🛒🛒🛒',\n  '📱 Cliente: ' + numero,\n  '📦 Producto: ' + producto,\n  '💬 Abrir chat: ' + enlaceChat,\n  '🗂️ Abrir en PleksOne: ' + enlaceInbox\n].join('\\n');\n\nreturn [{\n  json: {\n    numero_cliente: numero,\n    precio_texto: precioTexto,\n    nombre_wa: nombreWa,\n    enlace_chat: enlaceChat,\n    enlace_inbox: enlaceInbox,\n    producto, cantidad, precio,\n    precio_catalogo, cantidad_num,\n    // El id del catalogo. null = no se pudo identificar, y entonces\n    // NO se marca el producto: mejor un hueco que un dato inventado.\n    producto_id,\n    datos_cliente: datosCliente,\n    aviso_pedido: aviso\n  }\n}];\n"
       },
       "id": "a2000000-0000-4000-8000-000000000011",
       "name": "Preparar pedido",
@@ -1923,35 +1923,6 @@
       "typeVersion": 1,
       "position": [
         1056,
-        1392
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "// Lo único que se le dice al cliente después de dar sus datos.\n// Regla dura: silencio total salvo esto.\nreturn [{ json: {\n  accion: 'texto',\n  cliente_id: $('Variables').first().json.numero_cliente,\n  texto: '¡Gracias! 😊',\n  autor: 'bot',\n} }];"
-      },
-      "id": "a2000000-0000-4000-8000-000000000043",
-      "name": "Preparar: gracias",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        1312,
-        1392
-      ]
-    },
-    {
-      "parameters": {
-        "workflowId": "CYgKApb26ARGlhVZ",
-        "options": {
-          "waitForSubWorkflow": true
-        }
-      },
-      "id": "a2000000-0000-4000-8000-000000000044",
-      "name": "ENVIAR gracias",
-      "type": "n8n-nodes-base.executeWorkflow",
-      "typeVersion": 1,
-      "position": [
-        1552,
         1392
       ]
     },
@@ -3713,28 +3684,6 @@
             "type": "main",
             "index": 0
           },
-          {
-            "node": "Preparar: gracias",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Preparar: gracias": {
-      "main": [
-        [
-          {
-            "node": "ENVIAR gracias",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "ENVIAR gracias": {
-      "main": [
-        [
           {
             "node": "Apagar tras el pedido",
             "type": "main",

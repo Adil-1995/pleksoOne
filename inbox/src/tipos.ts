@@ -129,6 +129,22 @@ export interface Etiqueta {
 }
 
 /**
+ * Por dónde iba el equipo repasando la lista. Ver 11-marca-revision.sql.
+ *
+ * UNA por canal como máximo, y eso no es una convención de aquí: `canal_id`
+ * es la clave primaria de la tabla. Marcar otra conversación del mismo canal
+ * es un upsert que SUSTITUYE la fila, no dos escrituras que puedan quedarse
+ * a medias. El frontend no tiene que acordarse de quitar la anterior.
+ */
+export interface MarcaRevision {
+  canal_id: number
+  conversacion_id: number
+  /** Quién la puso. NULL = no se pudo saber. Lo escribe un trigger. */
+  marcado_por: string | null
+  marcado_en: string
+}
+
+/**
  * El estado de una conversación, en UN solo valor.
  *
  * Se calcula en un sitio y se pinta igual en la lista y en la cabecera. Antes

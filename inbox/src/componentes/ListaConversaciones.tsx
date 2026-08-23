@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Star, Pin, BotOff } from 'lucide-react'
-import { useConversaciones, useCanales, usePonerFavorita, usePonerFijada , useConversacionesCorruptas, motivoCorrupta } from '@/hooks/datos'
+import { Star, Pin, BotOff, Bookmark, BookmarkX } from 'lucide-react'
+import { useConversaciones, useCanales, usePonerFavorita, usePonerFijada , useConversacionesCorruptas, motivoCorrupta, useMarcas, usePonerMarca } from '@/hooks/datos'
 import { mariaAtiende, distintivo } from '@/lib/canales'
 import { useUI } from '@/store/ui'
 import { clasePunto } from '@/lib/colores'
 import { productosDe, nombreProducto } from '@/lib/productos'
-import { horaLista, iniciales, colorAvatar, resumen } from '@/lib/formato'
+import { horaLista, iniciales, colorAvatar, resumen, telefonoLegible } from '@/lib/formato'
 import { EsqueletoLista, Vacio } from './Esqueletos'
 import { FiltrosLista, aplicarFiltros } from './FiltrosLista'
 import { IconoEstado } from './EstadoConv'
@@ -26,7 +26,10 @@ export function ListaConversaciones() {
   const { data: canales } = useCanales()
   const { busqueda, resaltado, setResaltado, bandeja, etiquetaFiltro,
           productoFiltro, estadoProductoFiltro, pedidoFiltro, canalFiltro,
-          anclaLista, setAnclaLista, ultimaAbierta, setUltimaAbierta } = useUI()
+          anclaLista, setAnclaLista, ultimaAbierta, setUltimaAbierta,
+          deslizada, setDeslizada } = useUI()
+  const marcas = useMarcas()
+  const marcar = usePonerMarca()
   const navegar = useNavigate()
   const { clienteId } = useParams()
   const contenedor = useRef<HTMLDivElement>(null)
@@ -167,6 +170,20 @@ export function ListaConversaciones() {
                     activa={c.cliente_id === clienteId}
                     ultima={c.cliente_id === ultimaAbierta && c.cliente_id !== clienteId}
                     resaltada={v.index === resaltado}
+                    marcada={marcas.has(c.id)}
+                    abierta={deslizada === c.cliente_id}
+                    onDeslizar={(destapada) => setDeslizada(destapada ? c.cliente_id : null)}
+                    // La marca es POR CANAL, así que necesita saber de qué
+                    // número es esta conversación. Sin `canal_id` la fila ni
+                    // siquiera llega hasta aquí — `motivoCorrupta` la aparta.
+                    onMarcar={() => {
+                      if (c.canal_id == null) return
+                      marcar.mutate({
+                        canalId: c.canal_id,
+                        conversacionId: marcas.has(c.id) ? null : c.id,
+                      })
+                      setDeslizada(null)
+                    }}
                     onClick={(el) => {
                       // El ancla se toma AQUÍ, con la fila todavía en su
                       // sitio: después de navegar ya es tarde.
@@ -194,8 +211,12 @@ export function ListaConversaciones() {
   )
 }
 
+/** Lo que se destapa al deslizar. Fijo, para que el gesto tenga un tope. */
+const ANCHO_MARCA = 76
+
 function Fila({
-  conv, canal, callada, activa, ultima, resaltada, onClick,
+  conv, canal, callada, activa, ultima, resaltada, marcada, abierta,
+  onClick, onMarcar, onDeslizar,
 }: {
   conv: Conversacion
   /** Solo llega si estás viendo todos los canales mezclados. */
@@ -206,173 +227,368 @@ function Fila({
   /** La última que abriste, para localizarla de un vistazo al volver. */
   ultima: boolean
   resaltada: boolean
+  /** Es la marca de «revisado hasta aquí» de su canal. */
+  marcada: boolean
+  /** Tiene el panel de la marca destapado. */
+  abierta: boolean
   onClick: (e: React.MouseEvent) => void
+  onMarcar: () => void
+  onDeslizar: (destapada: boolean) => void
 }) {
-  const nombre = conv.nombre || conv.cliente_id
   const favorita = usePonerFavorita()
   const fijada = usePonerFijada()
   const etiquetas = conv.etiquetas ?? []
   const productos = productosDe(conv)
 
-  return (
-    // La fila entera ya no es un <button>: dentro va la estrella, que también
-    // lo es, y un botón dentro de otro es HTML inválido — el navegador lo
-    // desanida y el clic de la estrella acaba abriendo la conversación.
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={onClick}
-      // El teclado también abre, y también tiene que dejar el ancla puesta:
-      // `onClick` la calcula desde currentTarget, que aquí es la misma fila.
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(e as unknown as React.MouseEvent) }
-      }}
-      className={[
-        // `group` para que las acciones aparezcan al pasar por encima.
-        // El separador va aquí, en el borde inferior de la fila: con las
-        // filas pegadas y dos líneas de contenido cada una, la de Adil se
-        // comía visualmente la de abajo.
-        'group relative flex w-full cursor-pointer items-center gap-3 border-b border-borde/60 px-3 py-2.5 text-left transition-colors',
-        activa ? 'bg-panel2' : resaltada ? 'bg-panel2/50' : 'hover:bg-panel2/30',
-        // La última que abriste, para reencontrarla de un vistazo al volver.
-        // Un tinte flojo y una barra al borde: se localiza sin competir con
-        // la conversación activa ni con los no leídos.
-        ultima ? 'bg-acento/[0.07]' : '',
-      ].join(' ')}
-    >
-      {ultima && (
-        <span
-          aria-hidden
-          className="absolute inset-y-0 left-0 w-[3px] rounded-r bg-acento/70"
-        />
-      )}
+  /*
+    EL GESTO DE DESLIZAR.
 
-      <div
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-fondo"
-        style={{ background: colorAvatar(conv.cliente_id) }}
-      >
-        {iniciales(conv.nombre, conv.cliente_id)}
+    Con eventos de PUNTERO, no de tacto: así el mismo código vale para el
+    dedo en el móvil y para arrastrar con el ratón en el PC. Con `touchstart`
+    la marca solo existiría en el móvil, y se pidió poder usarla en los dos.
+
+    Lo delicado es no robarle el scroll a la lista. Hasta que el puntero no
+    se ha movido 8 px no se decide nada; ahí se mira qué eje manda y, si
+    manda el vertical, el gesto se ABANDONA y la lista scrollea como
+    siempre. Solo si manda el horizontal se captura el puntero. Al revés
+    —capturar primero y decidir después— la lista se queda pegada en cuanto
+    rozas una fila, que en una lista de 341 es inaceptable.
+  */
+  const [arrastre, setArrastre] = useState<number | null>(null)
+  const gesto = useRef<{ x: number; y: number; eje: '?' | 'x' } | null>(null)
+  // Un arrastre horizontal termina soltando ENCIMA de la fila, y eso el
+  // navegador lo cuenta como un clic. Sin esta bandera, deslizar abriría
+  // además la conversación.
+  const arrastrado = useRef(false)
+
+  const x = arrastre ?? (abierta ? -ANCHO_MARCA : 0)
+
+  const empezar = (e: React.PointerEvent) => {
+    if (e.pointerType === 'mouse' && e.button !== 0) return
+    // Se limpia AQUÍ, al empezar cada gesto, y no solo al tragarse el clic:
+    // un `pointercancel` (el navegador se queda el gesto, entra una llamada,
+    // cambias de app) termina sin clic y dejaría la bandera puesta. Entonces
+    // el siguiente toque, uno legítimo, se lo comería este mismo guardia y
+    // la conversación no abriría — un fallo que solo aparece a ratos y que
+    // nadie sabría reproducir.
+    arrastrado.current = false
+    gesto.current = { x: e.clientX, y: e.clientY, eje: '?' }
+  }
+
+  const mover = (e: React.PointerEvent) => {
+    const g = gesto.current
+    if (!g) return
+    const dx = e.clientX - g.x
+    const dy = e.clientY - g.y
+    if (g.eje === '?') {
+      if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return
+      if (Math.abs(dy) >= Math.abs(dx)) { gesto.current = null; return }   // es scroll, no es nuestro
+      g.eje = 'x'
+      arrastrado.current = true
+      e.currentTarget.setPointerCapture(e.pointerId)
+    }
+    const base = abierta ? -ANCHO_MARCA : 0
+    setArrastre(Math.max(-ANCHO_MARCA, Math.min(0, base + dx)))
+  }
+
+  const soltar = (e: React.PointerEvent) => {
+    const g = gesto.current
+    gesto.current = null
+    if (g?.eje === 'x') {
+      soltarPuntero(e)
+      // El medio decide: pasado el medio se queda destapada, sin llegar
+      // vuelve a su sitio.
+      onDeslizar((arrastre ?? 0) < -ANCHO_MARCA / 2)
+    }
+    setArrastre(null)
+  }
+
+  /*
+    `pointercancel` NO es `pointerup`, y tratarlos igual estaba mal.
+
+    Cancelar significa que el navegador te ha quitado el gesto a media
+    faena: entra una llamada, cambias de app, el sistema decide que en
+    realidad era un scroll. El dedo nunca llegó a decidir nada. Si aquí se
+    llamara a `onDeslizar`, un gesto que el usuario no terminó dejaría el
+    panel destapado, y encima sin el clic que lo cerraría después.
+
+    Cancelar deshace: se suelta el arrastre y la fila vuelve al estado que
+    ya tenía.
+  */
+  const cancelar = (e: React.PointerEvent) => {
+    const g = gesto.current
+    gesto.current = null
+    if (g?.eje === 'x') soltarPuntero(e)
+    setArrastre(null)
+  }
+
+  const soltarPuntero = (e: React.PointerEvent) => {
+    if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId)
+    }
+  }
+
+  const pulsar = (e: React.MouseEvent) => {
+    if (arrastrado.current) { arrastrado.current = false; return }
+    // Con el panel destapado, tocar la fila lo cierra. Abrir la conversación
+    // con el botón de la marca a la vista sería un salto que nadie ha pedido.
+    if (abierta) { onDeslizar(false); return }
+    onClick(e)
+  }
+
+  return (
+    /*
+      Tres capas: el recorte fuera, el botón de la marca al fondo y la fila
+      encima, que es la única que se mueve. El separador y el `group` viven
+      en el RECORTE, no en la fila: si viajaran con ella, la línea de abajo
+      se desplazaría con el dedo y el hover se perdería a mitad del gesto.
+    */
+    <div className="group relative overflow-hidden border-b border-borde/60">
+      <div className="absolute inset-y-0 right-0 flex">
+        <button
+          onClick={(e) => { e.stopPropagation(); onMarcar() }}
+          // Fuera del recorrido del tabulador mientras está tapado: si no,
+          // el teclado se pararía 341 veces en un botón que no se ve.
+          tabIndex={abierta ? 0 : -1}
+          className="flex w-[76px] flex-col items-center justify-center gap-1 bg-amber-400 text-[10px] font-semibold text-slate-900 transition-colors hover:bg-amber-300"
+          aria-label={marcada ? 'Quitar la marca de revisado' : 'Marcar revisado hasta aquí'}
+        >
+          {marcada ? <BookmarkX className="h-5 w-5" /> : <Bookmark className="h-5 w-5" />}
+          {marcada ? 'Quitar' : 'Marcar'}
+        </button>
       </div>
 
-      <div className="min-w-0 flex-1">
-        <div className="flex items-baseline gap-1.5">
-          {conv.fijada && (
-            <Pin className="h-3 w-3 shrink-0 self-center text-acento" aria-label="Fijada" />
-          )}
-          {callada && (
-            <BotOff
-              className="h-3.5 w-3.5 shrink-0 self-center text-alerta"
-              aria-label="María pausada en este canal"
-            />
-          )}
-          <span className="min-w-0 flex-1 truncate font-medium">{nombre}</span>
-          {canal && (
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={pulsar}
+        onPointerDown={empezar}
+        onPointerMove={mover}
+        onPointerUp={soltar}
+        onPointerCancel={cancelar}
+        // El teclado también abre, y también tiene que dejar el ancla puesta:
+        // `onClick` la calcula desde currentTarget, que aquí es la misma fila.
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pulsar(e as unknown as React.MouseEvent) }
+        }}
+        style={{
+          transform: x ? `translateX(${x}px)` : undefined,
+          // Sin transición mientras el puntero manda: el retardo se notaría
+          // como que la fila va detrás del dedo. Al soltar, sí.
+          transition: arrastre === null ? 'transform .18s ease' : 'none',
+          // El scroll vertical se lo queda el navegador; el horizontal, esto.
+          touchAction: 'pan-y',
+        }}
+        className={[
+          'relative flex w-full cursor-pointer items-center gap-3 px-3 py-2.5 text-left',
+          // `bg-panel` es el ÚNICO fondo de la fila, y tiene que ser opaco:
+          // es lo que tapa el botón de la marca mientras la fila está en su
+          // sitio. Los estados (activa, resaltada, hover) NO se ponen aquí
+          // como un `bg-*` más: dos clases de fondo en el mismo elemento las
+          // resuelve Tailwind por el orden de su hoja de estilos, no por el
+          // orden en que las escribas, así que cuál gana es una lotería. Van
+          // en capas, justo debajo.
+          'bg-panel',
+        ].join(' ')}
+      >
+        {/*
+          LAS CAPAS DE COLOR, de abajo arriba: estado de la fila y luego la
+          marca. Van en `span` propios y no en el fondo porque el fondo tiene
+          que quedarse opaco (ver arriba), y con `pointer-events-none` para
+          que no le roben el gesto de deslizar a la fila.
+
+          `group-hover` y no `hover` porque el `group` vive en el recorte, que
+          es quien no se mueve: colgado de la fila, el hover se perdería en
+          cuanto la fila se desplazara bajo el cursor.
+        */}
+        <span
+          aria-hidden
+          className={[
+            'pointer-events-none absolute inset-0',
+            activa ? 'bg-panel2' : resaltada ? 'bg-panel2/50' : 'group-hover:bg-panel2/30',
+          ].join(' ')}
+        />
+
+        {/*
+          Amarillo si es la marca; si no, el tinte flojo de la última abierta.
+
+          La marca gana a «última abierta» a propósito: son dos cosas
+          distintas —por dónde ibas repasando y qué abriste la última vez— y
+          si coinciden, la que hay que ver es la marca.
+        */}
+        {(marcada || ultima) && (
+          <>
             <span
-              title={canal.nombre}
-              className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold text-texto2 ring-1 ring-borde"
-            >
-              {distintivo(canal)}
-            </span>
-          )}
-          <span className="shrink-0 text-xs text-texto2">{horaLista(conv.ultimo_en)}</span>
+              aria-hidden
+              className={['pointer-events-none absolute inset-0', marcada ? 'bg-amber-400/[0.13]' : 'bg-acento/[0.07]'].join(' ')}
+            />
+            <span
+              aria-hidden
+              className={['pointer-events-none absolute inset-y-0 left-0 w-[3px] rounded-r', marcada ? 'bg-amber-400' : 'bg-acento/70'].join(' ')}
+            />
+          </>
+        )}
+
+        <div
+          className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white"
+          style={{ background: colorAvatar(conv.cliente_id) }}
+        >
+          {iniciales(conv.nombre, conv.cliente_id)}
         </div>
 
-        <div className="mt-0.5 flex items-center gap-1.5">
-          <IconoEstado conv={conv} />
-          <span className="truncate text-sm text-texto2">
-            {resumen(conv.ultimo_texto) || <span className="italic opacity-60">Sin mensajes</span>}
-          </span>
-          {conv.no_leidos > 0 && (
-            <span className="ml-auto min-w-[20px] shrink-0 rounded-full bg-acento px-1.5 py-0.5 text-center text-[11px] font-semibold text-fondo">
-              {conv.no_leidos > 99 ? '99+' : conv.no_leidos}
+        <div className="relative min-w-0 flex-1">
+          <div className="flex items-baseline gap-1.5">
+            {conv.fijada && (
+              <Pin className="h-3 w-3 shrink-0 self-center text-acento" aria-label="Fijada" />
+            )}
+            {marcada && (
+              <Bookmark
+                className="h-3.5 w-3.5 shrink-0 self-center fill-current text-amber-400"
+                aria-label="Revisado hasta aquí"
+              />
+            )}
+            {callada && (
+              <BotOff
+                className="h-3.5 w-3.5 shrink-0 self-center text-alerta"
+                aria-label="María pausada en este canal"
+              />
+            )}
+            {/*
+              EL NÚMERO manda; el nombre de WhatsApp pasa detrás.
+
+              El nombre lo pone el cliente y lo cambia cuando quiere. El
+              número es el `cliente_id`, la identidad de verdad (regla 3), y
+              es lo que hace falta para buscar, para cuadrar un pedido y para
+              el `curl` de la pausa. Por eso se lleva el peso visual y el
+              nombre se queda como pista.
+
+              El número NO trunca y el nombre SÍ: si en un móvil estrecho
+              tiene que ceder alguno, cede el que no identifica a nadie.
+              El `title` lleva el número crudo, sin agrupar, que es el que se
+              copia y se pega.
+            */}
+            <span className="shrink-0 font-medium tabular-nums" title={conv.cliente_id}>
+              {telefonoLegible(conv.cliente_id)}
             </span>
+            {conv.nombre && (
+              <span className="min-w-0 flex-1 truncate text-xs text-texto2">{conv.nombre}</span>
+            )}
+            <span className={['shrink-0 text-xs text-texto2', conv.nombre ? '' : 'ml-auto'].join(' ')}>
+              {horaLista(conv.ultimo_en)}
+            </span>
+            {canal && (
+              <span
+                title={canal.nombre}
+                className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold text-texto2 ring-1 ring-borde"
+              >
+                {distintivo(canal)}
+              </span>
+            )}
+          </div>
+
+          <div className="mt-0.5 flex items-center gap-1.5">
+            <IconoEstado conv={conv} />
+            <span className="truncate text-sm text-texto2">
+              {resumen(conv.ultimo_texto) || <span className="italic opacity-60">Sin mensajes</span>}
+            </span>
+            {conv.no_leidos > 0 && (
+              <span className="ml-auto min-w-[20px] shrink-0 rounded-full bg-acento px-1.5 py-0.5 text-center text-[11px] font-semibold text-fondo">
+                {conv.no_leidos > 99 ? '99+' : conv.no_leidos}
+              </span>
+            )}
+          </div>
+
+          {/*
+            TERCERA LÍNEA, y solo una: producto + etiquetas juntos.
+
+            Fuera el chip de canal (WA/EV/AD): hoy solo entra tráfico real por
+            uno, ya se dice en la cabecera del hilo, y era una pastilla en cada
+            fila que no cambiaba nunca.
+
+            Las etiquetas pasan de pastilla con nombre a PUNTO de color. Son
+            las que se comían la fila en la conversación de Adil; el nombre
+            sigue en el title y entero en la cabecera del hilo.
+          */}
+          {(productos.length > 0 || etiquetas.length > 0) && (
+            <div className="mt-0.5 flex items-center gap-1.5 overflow-hidden text-[11px] text-texto2">
+              {etiquetas.length > 0 && (
+                <span className="flex shrink-0 items-center gap-1">
+                  {etiquetas.slice(0, 4).map((e) => (
+                    <span
+                      key={e.id}
+                      title={e.nombre}
+                      className={['h-2 w-2 rounded-full', clasePunto(e.color)].join(' ')}
+                    />
+                  ))}
+                </span>
+              )}
+              {productos.length > 0 && (
+                <span className="truncate">
+                  {productos.slice(0, 2).map((p, i) => (
+                    <span key={p.producto}>
+                      {i > 0 && <span className="opacity-40"> · </span>}
+                      {nombreProducto(p.producto)}
+                      {p.estado === 'pendiente' && (
+                        <span className="ml-0.5 text-amber-400" title="Pedido pendiente de validar">●</span>
+                      )}
+                      {p.estado === 'validado' && (
+                        <span className="ml-0.5 text-acento" title="Pedido validado">✓</span>
+                      )}
+                    </span>
+                  ))}
+                  {productos.length > 2 && <span className="opacity-60"> +{productos.length - 2}</span>}
+                </span>
+              )}
+            </div>
           )}
         </div>
 
         {/*
-          TERCERA LÍNEA, y solo una: producto + etiquetas juntos.
+          ACCIONES. Calladas hasta que las buscas: en reposo solo se ve lo que
+          está ENCENDIDO (fijada, favorita, comprado). El resto aparece al pasar
+          por encima o al llegar con el teclado.
 
-          Fuera el chip de canal (WA/EV/AD): hoy solo entra tráfico real por
-          uno, ya se dice en la cabecera del hilo, y era una pastilla en cada
-          fila que no cambiaba nunca.
+          La marca NO está aquí, vive en el panel que se destapa al deslizar.
+          Por dos motivos: aquí ya hay tres iconos y en un móvil de 375 px un
+          cuarto se come el sitio del mensaje; y la marca se MUEVE —es una
+          sola en todo el canal— mientras que fijar y favorita son propiedades
+          de esta conversación y solo de esta.
 
-          Las etiquetas pasan de pastilla con nombre a PUNTO de color. Son
-          las que se comían la fila en la conversación de Adil; el nombre
-          sigue en el title y entero en la cabecera del hilo.
+          `acciones-fila` las deja siempre visibles en pantallas sin hover, que
+          es donde no hay forma de descubrirlas de otra manera. Ver index.css.
         */}
-        {(productos.length > 0 || etiquetas.length > 0) && (
-          <div className="mt-0.5 flex items-center gap-1.5 overflow-hidden text-[11px] text-texto2">
-            {etiquetas.length > 0 && (
-              <span className="flex shrink-0 items-center gap-1">
-                {etiquetas.slice(0, 4).map((e) => (
-                  <span
-                    key={e.id}
-                    title={e.nombre}
-                    className={['h-2 w-2 rounded-full', clasePunto(e.color)].join(' ')}
-                  />
-                ))}
-              </span>
-            )}
-            {productos.length > 0 && (
-              <span className="truncate">
-                {productos.slice(0, 2).map((p, i) => (
-                  <span key={p.producto}>
-                    {i > 0 && <span className="opacity-40"> · </span>}
-                    {nombreProducto(p.producto)}
-                    {p.estado === 'pendiente' && (
-                      <span className="ml-0.5 text-amber-400" title="Pedido pendiente de validar">●</span>
-                    )}
-                    {p.estado === 'validado' && (
-                      <span className="ml-0.5 text-acento" title="Pedido validado">✓</span>
-                    )}
-                  </span>
-                ))}
-                {productos.length > 2 && <span className="opacity-60"> +{productos.length - 2}</span>}
-              </span>
-            )}
-          </div>
-        )}
-      </div>
+        <div className="relative flex shrink-0 items-center gap-0.5 self-start">
+          <button
+            onClick={(e) => { e.stopPropagation(); fijada.mutate({ clienteId: conv.cliente_id, valor: !conv.fijada }) }}
+            className={[
+              'rounded p-1 transition-colors',
+              conv.fijada ? 'text-acento' : 'acciones-fila text-texto2/50 hover:text-texto2',
+            ].join(' ')}
+            aria-label={conv.fijada ? 'Dejar de fijar' : 'Fijar arriba'}
+            aria-pressed={!!conv.fijada}
+            title={conv.fijada ? 'Dejar de fijar' : 'Fijar arriba'}
+          >
+            <Pin className={['h-4 w-4', conv.fijada ? 'fill-current' : ''].join(' ')} />
+          </button>
 
-      {/*
-        ACCIONES. Calladas hasta que las buscas: en reposo solo se ve lo que
-        está ENCENDIDO (fijada, favorita, comprado). El resto aparece al pasar
-        por encima o al llegar con el teclado.
+          <button
+            onClick={(e) => { e.stopPropagation(); favorita.mutate({ clienteId: conv.cliente_id, valor: !conv.favorita }) }}
+            className={[
+              'rounded p-1 transition-colors',
+              conv.favorita ? 'text-amber-400' : 'acciones-fila text-texto2/50 hover:text-texto2',
+            ].join(' ')}
+            aria-label={conv.favorita ? 'Quitar de favoritos' : 'Marcar como favorita'}
+            aria-pressed={!!conv.favorita}
+            title={conv.favorita ? 'Quitar de favoritos' : 'Marcar como favorita'}
+          >
+            <Star className={['h-4 w-4', conv.favorita ? 'fill-current' : ''].join(' ')} />
+          </button>
 
-        `acciones-fila` las deja siempre visibles en pantallas sin hover, que
-        es donde no hay forma de descubrirlas de otra manera. Ver index.css.
-      */}
-      <div className="flex shrink-0 items-center gap-0.5 self-start">
-        <button
-          onClick={(e) => { e.stopPropagation(); fijada.mutate({ clienteId: conv.cliente_id, valor: !conv.fijada }) }}
-          className={[
-            'rounded p-1 transition-colors',
-            conv.fijada ? 'text-acento' : 'acciones-fila text-texto2/50 hover:text-texto2',
-          ].join(' ')}
-          aria-label={conv.fijada ? 'Dejar de fijar' : 'Fijar arriba'}
-          aria-pressed={!!conv.fijada}
-          title={conv.fijada ? 'Dejar de fijar' : 'Fijar arriba'}
-        >
-          <Pin className={['h-4 w-4', conv.fijada ? 'fill-current' : ''].join(' ')} />
-        </button>
-
-        <button
-          onClick={(e) => { e.stopPropagation(); favorita.mutate({ clienteId: conv.cliente_id, valor: !conv.favorita }) }}
-          className={[
-            'rounded p-1 transition-colors',
-            conv.favorita ? 'text-amber-400' : 'acciones-fila text-texto2/50 hover:text-texto2',
-          ].join(' ')}
-          aria-label={conv.favorita ? 'Quitar de favoritos' : 'Marcar como favorita'}
-          aria-pressed={!!conv.favorita}
-          title={conv.favorita ? 'Quitar de favoritos' : 'Marcar como favorita'}
-        >
-          <Star className={['h-4 w-4', conv.favorita ? 'fill-current' : ''].join(' ')} />
-        </button>
-
-        {/* El carrito se pinta solo si hay pedido; si no, se comporta como
-            las otras acciones y asoma al pasar por encima. Esa lógica vive
-            dentro del componente, que es quien sabe en qué estado está. */}
-        <CarritoPedido conv={conv} compacto />
+          {/* El carrito se pinta solo si hay pedido; si no, se comporta como
+              las otras acciones y asoma al pasar por encima. Esa lógica vive
+              dentro del componente, que es quien sabe en qué estado está. */}
+          <CarritoPedido conv={conv} compacto />
+        </div>
       </div>
     </div>
   )

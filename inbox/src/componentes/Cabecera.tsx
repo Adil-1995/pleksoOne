@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { usePonerBot, usePonerSilenciada, useEtiquetarConversacion } from '@/hooks/datos'
 import { capacidadesDe, estadoVentana } from '@/lib/canales'
 import { clasePastilla } from '@/lib/colores'
-import { iniciales, colorAvatar } from '@/lib/formato'
+import { iniciales, colorAvatar, telefonoLegible } from '@/lib/formato'
 import { estadoDe, type Conversacion, type Canal } from '@/tipos'
 import { pintaEstado } from './EstadoConv'
 import { MenuConversacion } from './MenuConversacion'
@@ -63,7 +63,7 @@ export function Cabecera({
             bot_activo a secas, así que una bloqueada nunca sale en verde. */}
         <div
           className={[
-            'relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-fondo ring-2 ring-offset-2 ring-offset-panel',
+            'relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white ring-2 ring-offset-2 ring-offset-panel',
             pinta.anillo,
           ].join(' ')}
           style={{ background: colorAvatar(conv.cliente_id) }}
@@ -77,14 +77,31 @@ export function Cabecera({
           )}
         </div>
 
+        {/*
+          EL NÚMERO arriba y el nombre debajo, no al revés.
+
+          El de arriba es el identificador: es lo que se copia para el `curl`
+          de la pausa, lo que hay que comparar con el aviso de Telegram y lo
+          único que no cambia (regla 3). El nombre de WhatsApp lo edita el
+          cliente cuando quiere, así que baja a la línea de contexto junto al
+          canal — sigue estando, pero deja de mandar.
+
+          El `title` lleva el número CRUDO, sin agrupar: es el que se pega.
+        */}
         <div className="min-w-0 flex-1 basis-40">
           <div className="flex items-center gap-1.5">
             {conv.fijada && <Pin className="h-3.5 w-3.5 shrink-0 text-acento" aria-label="Fijada" />}
-            <span className="truncate font-medium">{conv.nombre || conv.cliente_id}</span>
+            <span className="truncate font-medium tabular-nums" title={conv.cliente_id}>
+              {telefonoLegible(conv.cliente_id)}
+            </span>
           </div>
           <div className="truncate text-xs text-texto2">
-            {conv.cliente_id}
-            <span className="mx-1.5 opacity-40">·</span>
+            {conv.nombre && (
+              <>
+                {conv.nombre}
+                <span className="mx-1.5 opacity-40">·</span>
+              </>
+            )}
             {cap.nombre}
           </div>
         </div>

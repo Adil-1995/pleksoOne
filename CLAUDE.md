@@ -204,6 +204,18 @@ formatear, así que no llegó ninguno.
   antes de tocar una sola línea del webhook
 - El `ctwa_clid` (atribución del anuncio) llega en `messages[0].referral` y **solo en el
   primer mensaje** del cliente. Si no se captura ahí, el pedido queda sin atribuir
+- **NO hay foto de perfil del cliente, y no la va a haber.** El webhook trae
+  `contacts[].profile` con **un solo campo, `name`**. Y no hay endpoint que la sirva:
+  un `wa_id` ni siquiera es un objeto del grafo (`GET /v23.0/{wa_id}` → *«Object with
+  ID ... does not exist»*, code 100 subcode 33; `/{wa_id}/picture` → *«nonexisting
+  field (picture)»*). El `profile_picture_url` que sí existe es el de
+  `whatsapp_business_profile`, o sea **el tuyo**, no el del cliente.
+  Comprobado contra la API el 23/8/2026, no deducido de la documentación.
+  Lo que devuelven whapi.cloud, wasenderapi y compañía sale de WhatsApp Web
+  ingeniería inversa — **el mismo camino que nos costó el ban**. No es una opción.
+  → El avatar es y seguirá siendo iniciales sobre color. El color sale del NÚMERO
+    (`colorAvatar` en `inbox/src/lib/formato.ts`), nunca del nombre: el nombre lo
+    edita el cliente cuando quiere y el avatar cambiaría de color con él
 
 **Supabase / PostgREST**
 - El índice único para `ON CONFLICT` **no puede ser parcial**. Postgres solo usa un
@@ -238,7 +250,16 @@ formatear, así que no llegó ninguno.
 - `palabras_clave` del Sheet = SOLO nombres del producto. Nunca "precio", "info", "cuanto":
   si se repiten en todos los productos, todo empata y no se identifica nada
 - Nunca enumerar el catálogo: si una respuesta menciona 2+ productos, se descarta
-- Silencio total tras recibir los datos del pedido: solo aviso interno, cero mensajes al cliente
+- Silencio total tras recibir los datos del pedido: solo aviso interno, cero mensajes
+  al cliente. **Desde el 23/8/2026 es literal**: se quitaron `Preparar: gracias` y
+  `ENVIAR gracias` del receptor, y `Guardar pedido` engancha directamente con
+  `Apagar tras el pedido`. Se guarda el pedido, se avisa a Telegram, sale el carrito
+  y el bot se apaga — sin decirle nada al cliente.
+  *Pendiente, si molesta:* el indicador de «escribiendo…» se manda mucho antes, en
+  `Añadir contexto`, cuando todavía no se sabe si esto va a ser un pedido. Así que
+  el cliente ve el doble check azul y «escribiendo…», y luego nada. El indicador
+  caduca solo a los ~25 s. Para quitarlo habría que mover esa rama por detrás de
+  `¿Pedido completo?`, y eso retrasa el check azul en TODOS los mensajes normales
 - **El producto NUNCA sale de una regex sobre el texto del modelo.** Sale de emparejar
   contra las `palabras_clave` del catálogo, igual que `Decidir ficha`. `Preparar pedido`
   lo sacaba con una expresión regular del bloque `[PEDIDO]` y fallaba en **33 de 40**
@@ -295,6 +316,15 @@ formatear, así que no llegó ninguno.
 
 - Proyecto `lumabot-inbox` — https://kiiiwtuwuauhomadmplv.supabase.co
 - Tablas: `conversaciones`, `mensajes`. Trigger `tocar_conversacion` y RLS activos.
+- `marcas_revision` (11-marca-revision.sql) — la marca de «revisado hasta aquí».
+  **UNA por canal, y eso lo impone la CLAVE PRIMARIA, no el frontend**: `canal_id`
+  es la PK, así que marcar otra conversación del mismo número es un upsert que
+  SUSTITUYE la fila, en una sola escritura. Con un booleano en `conversaciones`
+  serían dos —quitar la vieja, poner la nueva— y entre ellas, o si una falla,
+  quedarían dos marcas y nadie se enteraría hasta ver dos rayas amarillas.
+  Por canal y no global porque la lista mezcla los dos números ordenados por
+  fecha: sobre esa mezcla, una sola marca no significa nada. Compartida entre
+  usuarios a propósito — es la marca del equipo; quién la puso va en `marcado_por`.
 - NO borres tablas, columnas ni datos sin preguntarme antes.
 - La `service_role` se salta RLS: solo en n8n y en el servidor. NUNCA en
   ficheros del frontend ni en el repo del inbox.

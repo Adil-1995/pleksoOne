@@ -9,4 +9,4 @@ WhatsApp Cloud API + n8n + Supabase, con varios números en el mismo flujo.
 - `MARCHA-ATRAS.md` — cómo revertir un despliegue
 - `workflows/` — las definiciones de n8n que están en producción
 - `inbox/` — el inbox (Vite + React + Supabase Realtime)
-- `01..09-*.sql` — esquema de Supabase, en orden
+- `01..11-*.sql` — esquema de Supabase, en orden
