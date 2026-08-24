@@ -3061,6 +3061,59 @@
         "jsCode": "// PROMPT COMUN + PROMPT DEL CANAL, en este orden y nunca al reves.\n//\n// El comun manda: dice quien es Maria, como habla y que no puede hacer.\n// El del canal solo aporta DATOS de ese mercado (moneda, entrega,\n// saludo). Va detras y etiquetado como datos, para que si alguien\n// escribe una regla ahi por error, quede claro que no es su sitio.\nconst comun = String($('Leer Prompt').first().json.data || $('Leer Prompt').first().json || '');\n\nlet canal = '';\ntry {\n  const r = $('Leer prompt del canal').first().json;\n  const codigo = r.statusCode || 0;\n  if (codigo >= 200 && codigo < 300) canal = String(r.body || '');\n} catch (e) {}\n\n// Un Doc de canal que crece es la senal de que se estan colando reglas\n// donde solo deberian ir datos. 2000 caracteres es mucho para \"moneda,\n// entrega y saludo\": si se pasa, se avisa en el log de la ejecucion.\nconst AVISO_LARGO = 2000;\nconst demasiado = canal.length > AVISO_LARGO;\n\nconst nombreCanal = $('Resolver canal').first().json.canal_nombre || 'sin canal';\n\nconst partes = [comun.trim()];\nif (canal.trim()) {\n  partes.push(\n    '\\n\\n=== DATOS DE ESTE CANAL: ' + nombreCanal + ' ===',\n    'Lo que sigue son DATOS del mercado en el que estas atendiendo ahora',\n    '(pais, moneda, entrega, saludo). Si algo de aqui contradijera las',\n    'reglas de arriba, mandan las de arriba.',\n    '',\n    canal.trim(),\n  );\n}\n\nreturn [{ json: {\n  data: partes.join('\\n'),\n  _canal: nombreCanal,\n  _largo_comun: comun.length,\n  _largo_canal: canal.length,\n  _aviso: demasiado ? 'El prompt del canal pasa de ' + AVISO_LARGO + ' caracteres: probablemente lleva reglas que deberian estar en el comun.' : null,\n} }];"
       },
       "id": "4fbefa02-971a-49c1-b077-1ee682672899"
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── ATRIBUCIÓN DEL ANUNCIO ───────────────────────────────────────────────\n// El `ctwa_clid` llega en `messages[0].referral` y SOLO en el primer mensaje\n// del cliente. 'Normalizar evento' lo sacaba bien desde el primer día, pero\n// no lo escribía NADIE: `asegurar_conversacion()` no tiene parámetro para\n// él y el único PATCH sobre `conversaciones` es el de apagar el bot. La\n// columna la LEE el workflow del CAPI y no la escribía nadie — 355 de 357\n// clientes llegados de un anuncio se quedaron sin atribuir, y con ellos sus\n// ventas, que Meta no contó.\n//\n// Se escribe SOLO si viene `referral`. Eso da las dos cosas que hacen falta:\n//   - un mensaje siguiente (que ya no trae referral) no puede BORRAR el clid,\n//     porque este nodo no devuelve item y el PATCH ni se ejecuta;\n//   - un anuncio NUEVO sí lo sobrescribe → gana el ÚLTIMO, que es el\n//     criterio estándar de Meta.\n//\n// Se lee de $('Normalizar evento').all() y NO del item de entrada: un mismo\n// POST puede traer mensajes de VARIOS clientes, y con .first() se le pegaría\n// el clid del primero a todos los demás. Aquí cada evento va por su cuenta.\n//\n// Cero items = no hay anuncio que guardar, y el PATCH no llega a salir.\nconst eventos = $('Normalizar evento').all().map(i => i.json);\n\nconst salida = [];\nfor (const e of eventos) {\n  if (e.tipo_evento !== 'mensaje') continue;          // los estados no atribuyen\n  const clid = String(e.ctwa_clid || '').trim();\n  if (!clid) continue;                                 // sin anuncio, no se toca\n  if (!e.cliente_id) continue;                         // sin identidad no hay a quién\n  salida.push({ json: {\n    cliente_id: String(e.cliente_id),\n    ctwa_clid:  clid,\n    ad_id:      String(e.ad_id || '').trim() || null,\n  }});\n}\n\nreturn salida;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1744,
+        640
+      ],
+      "id": "a7c1f2e0-5b93-4d18-9f6a-2c8e41d70b55",
+      "name": "Atribución del anuncio"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/conversaciones?cliente_id=eq.{{ $json.cliente_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ ctwa_clid: $json.ctwa_clid, ad_id: $json.ad_id }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1984,
+        640
+      ],
+      "id": "b3e9d5a1-7c42-4e60-8a15-9f3b62c80d47",
+      "name": "Guardar atribución",
+      "onError": "continueRegularOutput"
     }
   ],
   "connections": {
@@ -3179,6 +3232,11 @@
         [
           {
             "node": "Preparar fila del mensaje",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Atribución del anuncio",
             "type": "main",
             "index": 0
           }
@@ -4350,6 +4408,17 @@
         [
           {
             "node": "Leer Catálogo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Atribución del anuncio": {
+      "main": [
+        [
+          {
+            "node": "Guardar atribución",
             "type": "main",
             "index": 0
           }
