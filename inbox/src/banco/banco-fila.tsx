@@ -91,7 +91,19 @@ const CASOS: { titulo: string; conv: Conversacion; canal?: Canal; callada?: bool
     marcada: true,
   },
   {
-    titulo: '5. Sin canal (no hay chip MX): la hora se queda sola',
+    titulo: '5. FIJADA: una sola chincheta, verde, la del botón',
+    conv: { ...base, cliente_id: '5215544332211', nombre: 'Rosa',
+      ultimo_texto: '¿me llega mañana?', fijada: true },
+    canal: MX,
+  },
+  {
+    titulo: '6. SIN fijar: ninguna chincheta encendida',
+    conv: { ...base, cliente_id: '5215577665544', nombre: 'Rosa',
+      ultimo_texto: '¿me llega mañana?', fijada: false },
+    canal: MX,
+  },
+  {
+    titulo: '7. Sin canal (no hay chip MX): la hora se queda sola',
     conv: { ...base, cliente_id: '34641691299', nombre: 'Adil',
       ultimo_texto: 'perfecto, gracias', ultimo_en: '2026-08-21T18:02:00Z' },
     canal: undefined,
@@ -109,7 +121,7 @@ function Regla() {
         if (!acciones) return 'fila ' + (i + 1) + ' sin acciones'
         // Los 6 huecos de la rejilla en orden: pin, favorito, carrito,
         // (vacío), hora, canal. Miramos el CENTRO de cada uno.
-        const centroDe = (el) => {
+        const centroDe = (el: Element | undefined) => {
           if (!el) return null
           const r = el.getBoundingClientRect()
           return Math.round(r.left + r.width / 2 - acciones.getBoundingClientRect().left)

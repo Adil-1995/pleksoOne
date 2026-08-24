@@ -464,10 +464,22 @@ export function Fila({
 
               Estaban a la IZQUIERDA del número y lo empujaban: el
               identificador de la conversación se movía de sitio según
-              estuviera fijada, marcada o con el canal pausado, así que al
-              recorrer la lista los números no quedaban alineados y costaba
-              leerlos en vertical. Ahora el número siempre arranca en el
-              mismo punto y lo que baila es el borde derecho, que no se lee.
+              estuviera marcada o con el canal pausado, así que al recorrer
+              la lista los números no quedaban alineados y costaba leerlos
+              en vertical. Ahora el número siempre arranca en el mismo punto
+              y lo que baila es el borde derecho, que no se lee.
+
+              AQUÍ NO HAY PIN, y es a propósito. Lo había, y salían DOS
+              chinchetas por fila: esta y la del botón de fijar, que ya se
+              pone verde y rellena cuando la conversación está fijada. Un
+              estado se anuncia UNA vez. Se quedó el botón porque es el
+              único de los dos que además sirve para desfijar; un adorno que
+              no se puede pulsar no aporta nada que el botón no diga ya.
+
+              Marcada y pausada sí siguen aquí porque sus controles no están
+              en esta fila: la marca vive en el panel que se destapa al
+              deslizar y la pausa del canal se toca desde la conversación.
+              Ahí el distintivo es la única señal que hay, no una repetición.
 
               El canal (MX) y la HORA ya no están aquí: se han ido abajo, a
               la columna de acciones, cada uno bajo su icono. Esta línea es
@@ -489,9 +501,6 @@ export function Fila({
                   className="h-3.5 w-3.5 fill-current text-amber-400"
                   aria-label="Revisado hasta aquí"
                 />
-              )}
-              {conv.fijada && (
-                <Pin className="h-3.5 w-3.5 fill-current text-acento" aria-label="Fijada" />
               )}
             </span>
           </div>
