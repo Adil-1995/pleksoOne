@@ -196,6 +196,88 @@ export interface Mensaje {
   creado: string
   canal: string | null
   adjuntos?: Adjunto[]
+  /**
+   * El webhook CRUDO de Meta, tal cual llegó (lo guarda `Preparar fila del
+   * mensaje`). `unknown` a propósito: es de un tercero y su forma no la
+   * decidimos nosotros, así que TypeScript obliga a comprobarla antes de
+   * leer nada. Ver `ubicacionDe()`.
+   */
+  payload?: unknown
+}
+
+/**
+ * Una ubicación que mandó el cliente.
+ *
+ * No tiene tabla ni columnas propias: las coordenadas ya venían guardadas
+ * dentro de `mensajes.payload`, que es el webhook crudo. No hacía falta
+ * tocar el esquema ni el flujo — solo mirar donde ya estaba.
+ *
+ * `nombre` y `direccion` solo llegan cuando el cliente comparte un SITIO
+ * (un negocio, un punto de interés). Si comparte «mi ubicación» a secas,
+ * Meta manda únicamente latitud y longitud. Por eso son opcionales de
+ * verdad y la tarjeta tiene que verse bien sin ellos.
+ */
+export interface Ubicacion {
+  latitud: number
+  longitud: number
+  nombre: string | null
+  direccion: string | null
+}
+
+/**
+ * Saca la ubicación de un mensaje, o `null` si no se puede leer.
+ *
+ * Devuelve `null` en vez de coordenadas a medias a propósito. Un 0,0 por
+ * defecto cae en el Golfo de Guinea y se pintaría como una ubicación
+ * perfectamente válida: quien la abriera vería un mapa creíble y falso.
+ * Mejor decir «no se pudo leer» y que alguien lo mire.
+ */
+/**
+ * Un número que de verdad venía escrito, o `null`.
+ *
+ * `Number()` a secas no vale aquí: `Number('')` y `Number(null)` valen
+ * CERO, y cero es finito y está dentro de rango, así que una latitud
+ * ausente se colaría como un 0,0 perfectamente válido — el Golfo de
+ * Guinea, justo lo que `ubicacionDe()` promete no pintar nunca.
+ *
+ * La cadena se acepta porque Meta manda las coordenadas unas veces como
+ * número y otras como texto, según el cliente que las envíe.
+ */
+function numero(x: unknown): number | null {
+  if (typeof x === 'number') return Number.isFinite(x) ? x : null
+  if (typeof x === 'string' && x.trim() !== '') {
+    const n = Number(x)
+    return Number.isFinite(n) ? n : null
+  }
+  return null
+}
+
+export function ubicacionDe(m: Pick<Mensaje, 'tipo' | 'payload'>): Ubicacion | null {
+  if (m.tipo !== 'location') return null
+  const p = m.payload as { location?: Record<string, unknown> } | null | undefined
+  const l = p?.location
+  if (!l) return null
+
+  const latitud = numero(l.latitude)
+  const longitud = numero(l.longitude)
+  if (latitud === null || longitud === null) return null
+  if (Math.abs(latitud) > 90 || Math.abs(longitud) > 180) return null
+
+  const texto = (v: unknown): string | null => {
+    const s = typeof v === 'string' ? v.trim() : ''
+    return s === '' ? null : s
+  }
+  return { latitud, longitud, nombre: texto(l.name), direccion: texto(l.address) }
+}
+
+/** Enlace a Google Maps. Es la forma oficial y funciona en móvil y en PC. */
+export function enlaceMapa(u: Ubicacion): string {
+  return `https://www.google.com/maps/search/?api=1&query=${u.latitud},${u.longitud}`
+}
+
+/** Las coordenadas para copiar y pegar: lo que entiende cualquier mapa. */
+export function coordenadas(u: Ubicacion): string {
+  return `${u.latitud}, ${u.longitud}`
 }
 
 /** Mensaje que aún no ha confirmado el servidor: se pinta con un reloj. */

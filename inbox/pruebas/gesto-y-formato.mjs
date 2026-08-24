@@ -151,5 +151,66 @@ comprueba('con menos de 3 dígitos la vía nueva no ensancha nada',
 comprueba('número de otro cliente no casa',
   casa('5215591937975', 'Alejandra', 'hola', '+52 1 222 323 4147'), false)
 
+console.log()
+console.log('UBICACION (ubicacionDe)')
+function ubicacionDe(m) {
+  if (m.tipo !== 'location') return null
+  const l = m.payload?.location
+  if (!l) return null
+  const numero = (x) => {
+    // Number('') y Number(null) valen 0: sin el typeof, una coordenada
+    // ausente se colaria como 0,0. Igual que en tipos.ts y que en el nodo
+    // 'Normalizar evento' del receptor.
+    if (typeof x === 'number') return Number.isFinite(x) ? x : null
+    if (typeof x === 'string' && x.trim() !== '') { const n = Number(x); return Number.isFinite(n) ? n : null }
+    return null
+  }
+  const latitud = numero(l.latitude), longitud = numero(l.longitude)
+  if (latitud === null || longitud === null) return null
+  if (Math.abs(latitud) > 90 || Math.abs(longitud) > 180) return null
+  const texto = (v) => { const s = typeof v === 'string' ? v.trim() : ''; return s === '' ? null : s }
+  return { latitud, longitud, nombre: texto(l.name), direccion: texto(l.address) }
+}
+// El payload REAL del mensaje 866, copiado de Supabase tal cual.
+const real = { tipo: 'location', payload: { id: 'wamid.HBgLMzQ2NDE2OTEyOTkVAgASGBQzQUU2NEQzQUY0NjREQzk4NTQ4QgA=', from: '34641691299', type: 'location', location: { latitude: 37.065441131592, longitude: -8.8279609680176 }, timestamp: '1787513387' } }
+comprueba('el mensaje 866 real se lee', ubicacionDe(real),
+  { latitud: 37.065441131592, longitud: -8.8279609680176, nombre: null, direccion: null })
+comprueba('un sitio con nombre y direccion',
+  ubicacionDe({ tipo: 'location', payload: { location: { latitude: 19.4326, longitude: -99.1332, name: 'Zocalo', address: 'Centro, CDMX' } } }),
+  { latitud: 19.4326, longitud: -99.1332, nombre: 'Zocalo', direccion: 'Centro, CDMX' })
+comprueba('un mensaje de texto no es una ubicacion', ubicacionDe({ tipo: 'text', payload: { text: { body: 'hola' } } }), null)
+comprueba('sin payload -> null', ubicacionDe({ tipo: 'location', payload: null }), null)
+comprueba('payload sin location -> null', ubicacionDe({ tipo: 'location', payload: { type: 'location' } }), null)
+comprueba('coordenadas ausentes -> null, NO 0,0', ubicacionDe({ tipo: 'location', payload: { location: {} } }), null)
+comprueba('latitud CADENA VACIA -> null, NO 0,0', ubicacionDe({ tipo: 'location', payload: { location: { latitude: '', longitude: '' } } }), null)
+comprueba('latitud null -> null, NO 0,0', ubicacionDe({ tipo: 'location', payload: { location: { latitude: null, longitude: null } } }), null)
+comprueba('coordenadas en cadena numerica si valen',
+  ubicacionDe({ tipo: 'location', payload: { location: { latitude: '19.4326', longitude: '-99.1332' } } }),
+  { latitud: 19.4326, longitud: -99.1332, nombre: null, direccion: null })
+comprueba('latitud fuera de rango -> null', ubicacionDe({ tipo: 'location', payload: { location: { latitude: 999, longitude: 0 } } }), null)
+comprueba('longitud no numerica -> null', ubicacionDe({ tipo: 'location', payload: { location: { latitude: 19.4, longitude: 'oeste' } } }), null)
+comprueba('nombre vacio se trata como ausente',
+  ubicacionDe({ tipo: 'location', payload: { location: { latitude: 1, longitude: 2, name: '   ' } } }),
+  { latitud: 1, longitud: 2, nombre: null, direccion: null })
+
+console.log()
+console.log('RESUMEN DE LA LISTA')
+const ETIQUETA_TIPO = { image: '📷 Foto', audio: '🎤 Audio', video: '🎥 Vídeo', document: '📄 Documento', sticker: '🌟 Sticker', location: '📍 Ubicación', template: '📋 Plantilla' }
+function resumen(texto, tipo) {
+  const t = (texto ?? '').trim()
+  const marcador = t.match(/^\[([a-z_]+)\]$/)
+  if (marcador) return ETIQUETA_TIPO[marcador[1]] ?? t
+  if (t) return t.replace(/\s+/g, ' ')
+  return (tipo && ETIQUETA_TIPO[tipo]) || ''
+}
+comprueba('[location] deja de asomar', resumen('[location]'), '📍 Ubicación')
+comprueba('[image] tambien', resumen('[image]'), '📷 Foto')
+comprueba('[audio] tambien', resumen('[audio]'), '🎤 Audio')
+comprueba('un tipo desconocido se deja tal cual', resumen('[loquesea]'), '[loquesea]')
+comprueba('el texto normal no se toca', resumen('hola que tal'), 'hola que tal')
+comprueba('el marcador DENTRO de un texto no se traduce', resumen('mira [image] esto'), 'mira [image] esto')
+comprueba('vacio con tipo cae en la etiqueta', resumen('', 'location'), '📍 Ubicación')
+comprueba('vacio sin tipo es vacio', resumen(null), '')
+
 console.log(fallos === 0 ? '\nTODO OK' : '\n' + fallos + ' FALLOS')
 process.exit(fallos ? 1 : 0)

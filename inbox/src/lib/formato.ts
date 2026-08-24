@@ -117,12 +117,29 @@ export function colorAvatar(clienteId: string): string {
   return COLORES[h % COLORES.length]
 }
 
-/** Lo que se enseña en la lista cuando el último mensaje no es texto. */
+const ETIQUETA_TIPO: Record<string, string> = {
+  image: '📷 Foto', audio: '🎤 Audio', video: '🎥 Vídeo',
+  document: '📄 Documento', sticker: '🌟 Sticker', location: '📍 Ubicación',
+  template: '📋 Plantilla',
+}
+
+/**
+ * Lo que se enseña en la lista cuando el último mensaje no es texto.
+ *
+ * El trigger `tocar_conversacion` escribe `'[' || tipo || ']'` en
+ * `ultimo_texto` cuando el mensaje no trae texto, así que la lista venía
+ * enseñando `[image]`, `[audio]` y —desde que hay ubicaciones— `[location]`.
+ * Eso es el nombre interno del tipo asomando a la interfaz. Aquí se traduce.
+ *
+ * Se traduce solo si la cadena es EXACTAMENTE el marcador. Un cliente que
+ * escriba literalmente «[image]» saldría mal etiquetado; es improbable y lo
+ * que se pierde es cosmético, mientras que reconocer el marcador dentro de
+ * un texto más largo rompería mensajes de verdad.
+ */
 export function resumen(texto: string | null, tipo?: string): string {
-  if (texto && texto.trim()) return texto.replace(/\s+/g, ' ').trim()
-  const etiquetas: Record<string, string> = {
-    image: '📷 Foto', audio: '🎤 Audio', video: '🎥 Vídeo',
-    document: '📄 Documento', sticker: '🌟 Sticker', location: '📍 Ubicación',
-  }
-  return (tipo && etiquetas[tipo]) || ''
+  const t = (texto ?? '').trim()
+  const marcador = t.match(/^\[([a-z_]+)\]$/)
+  if (marcador) return ETIQUETA_TIPO[marcador[1]] ?? t
+  if (t) return t.replace(/\s+/g, ' ')
+  return (tipo && ETIQUETA_TIPO[tipo]) || ''
 }

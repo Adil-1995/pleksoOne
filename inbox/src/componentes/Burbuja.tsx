@@ -1,13 +1,17 @@
+import { useState } from 'react'
 import {
   Check, CheckCheck, Clock, AlertCircle, FileText, FileSpreadsheet, FileArchive,
-  Bot, User, Loader2, Download,
+  Bot, User, Loader2, Download, MapPin, ExternalLink, Copy,
 } from 'lucide-react'
 import { horaMensaje, pesoLegible } from '@/lib/formato'
 import { nombreDeRuta } from '@/lib/media'
 import { useUrlFirmada } from '@/hooks/useUrlFirmada'
 import { useUI } from '@/store/ui'
 import { ReproductorAudio } from './ReproductorAudio'
-import { esOptimista, type MensajeEnLista } from '@/tipos'
+import {
+  esOptimista, ubicacionDe, enlaceMapa, coordenadas,
+  type MensajeEnLista, type Ubicacion,
+} from '@/tipos'
 
 export function Burbuja({ m }: { m: MensajeEnLista }) {
   const propio = m.direccion === 'out'
@@ -22,6 +26,7 @@ export function Burbuja({ m }: { m: MensajeEnLista }) {
   const { url, cargando, error: errorMedia } = useUrlFirmada(ruta)
   const hayMedia = m.tipo !== 'text' && m.tipo !== 'template' && m.tipo !== 'location'
   const transcripcion = m.transcripcion ?? adjunto?.transcripcion ?? null
+  const ubicacion = ubicacionDe(m)
 
   // El nombre real del fichero. En un mensaje que aún sube viene puesto a
   // mano; en los de la base de datos se deduce de la ruta, que lo lleva
@@ -118,6 +123,25 @@ export function Burbuja({ m }: { m: MensajeEnLista }) {
           </a>
         )}
 
+        {/*
+          UBICACIÓN. Las coordenadas ya venían guardadas en `mensajes.payload`
+          desde el primer día —el webhook crudo entero— así que esto no ha
+          necesitado ni tabla nueva ni tocar el flujo. Lo que faltaba era
+          mirarlas: hasta ahora una ubicación se pintaba como una burbuja
+          VACÍA, solo con la hora, y parecía un mensaje perdido.
+
+          Si el payload no trae coordenadas legibles se dice, no se pinta un
+          0,0: ver `ubicacionDe()`.
+        */}
+        {m.tipo === 'location' && (
+          ubicacion ? <TarjetaUbicacion u={ubicacion} /> : (
+            <div className="mb-1 flex items-start gap-1.5 rounded-md bg-alerta/15 px-2 py-1.5 text-[11px] text-alerta">
+              <AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />
+              <span>Llegó una ubicación pero no se pudieron leer sus coordenadas.</span>
+            </div>
+          )
+        )}
+
         {/* El texto: en media hace de pie de foto, documentos incluidos */}
         {m.texto && (
           <p className="whitespace-pre-wrap break-words text-[15px] leading-snug">{m.texto}</p>
@@ -145,6 +169,76 @@ export function Burbuja({ m }: { m: MensajeEnLista }) {
             <AlertCircle className="h-3 w-3" /> {m.fallo}
           </p>
         )}
+      </div>
+    </div>
+  )
+}
+
+/**
+ * La ubicación que mandó el cliente.
+ *
+ * Sin mapa embebido, y es una decisión, no una limitación: pintar teselas
+ * obliga a pedírselas a un tercero, y eso manda las coordenadas de la casa
+ * del cliente a un servidor ajeno cada vez que alguien abre la conversación.
+ * Aquí no sale nada: la tarjeta se pinta sola, funciona sin conexión y no
+ * añade una dependencia que un día se cae y deja un hueco gris.
+ *
+ * El mapa de verdad se abre al pulsar, en Google Maps, que es donde el
+ * repartidor lo va a querer de todas formas. Y el botón de copiar está
+ * porque lo que se hace con esto es pegárselo a la paquetería.
+ */
+function TarjetaUbicacion({ u }: { u: Ubicacion }) {
+  const [copiado, setCopiado] = useState(false)
+
+  const copiar = async () => {
+    try {
+      await navigator.clipboard.writeText(coordenadas(u))
+      setCopiado(true)
+      window.setTimeout(() => setCopiado(false), 1500)
+    } catch {
+      // Sin portapapeles (permiso denegado, contexto no seguro) no se finge
+      // que ha ido bien: las coordenadas están escritas ahí arriba y se
+      // pueden seleccionar a mano. Un «Copiado» falso es peor que nada.
+      setCopiado(false)
+    }
+  }
+
+  return (
+    <div className="mb-1 w-56 rounded-md velo p-2.5">
+      <div className="flex items-start gap-2.5">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-acento/20 text-acento">
+          <MapPin className="h-5 w-5" />
+        </span>
+        <div className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium">{u.nombre ?? 'Ubicación'}</span>
+          {u.direccion && (
+            <span className="block truncate text-[11px] opacity-70">{u.direccion}</span>
+          )}
+          {/* Las coordenadas SIEMPRE, aunque haya nombre: es el único dato
+              que no se puede confundir con otro sitio parecido. */}
+          <span className="mt-0.5 block text-[11px] tabular-nums opacity-60">
+            {u.latitud.toFixed(6)}, {u.longitud.toFixed(6)}
+          </span>
+        </div>
+      </div>
+
+      <div className="mt-2 grid grid-cols-2 gap-1.5">
+        <a
+          href={enlaceMapa(u)}
+          target="_blank"
+          rel="noreferrer"
+          className="flex items-center justify-center gap-1 rounded velo velo-hover px-2 py-1.5 text-[11px] font-medium"
+        >
+          Google Maps <ExternalLink className="h-3 w-3" />
+        </a>
+        <button
+          onClick={copiar}
+          className="flex items-center justify-center gap-1 rounded velo velo-hover px-2 py-1.5 text-[11px] font-medium"
+          title="Copiar las coordenadas"
+        >
+          {copiado ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+          {copiado ? 'Copiado' : 'Copiar'}
+        </button>
       </div>
     </div>
   )
