@@ -214,7 +214,7 @@ export function ListaConversaciones() {
 /** Lo que se destapa al deslizar. Fijo, para que el gesto tenga un tope. */
 const ANCHO_MARCA = 76
 
-function Fila({
+export function Fila({
   conv, canal, callada, activa, ultima, resaltada, marcada, abierta,
   onClick, onMarcar, onDeslizar,
 }: {
@@ -438,21 +438,6 @@ function Fila({
 
         <div className="relative min-w-0 flex-1">
           <div className="flex items-baseline gap-1.5">
-            {conv.fijada && (
-              <Pin className="h-3 w-3 shrink-0 self-center text-acento" aria-label="Fijada" />
-            )}
-            {marcada && (
-              <Bookmark
-                className="h-3.5 w-3.5 shrink-0 self-center fill-current text-amber-400"
-                aria-label="Revisado hasta aquí"
-              />
-            )}
-            {callada && (
-              <BotOff
-                className="h-3.5 w-3.5 shrink-0 self-center text-alerta"
-                aria-label="María pausada en este canal"
-              />
-            )}
             {/*
               EL NÚMERO manda; el nombre de WhatsApp pasa detrás.
 
@@ -473,17 +458,42 @@ function Fila({
             {conv.nombre && (
               <span className="min-w-0 flex-1 truncate text-xs text-texto2">{conv.nombre}</span>
             )}
-            <span className={['shrink-0 text-xs text-texto2', conv.nombre ? '' : 'ml-auto'].join(' ')}>
-              {horaLista(conv.ultimo_en)}
+
+            {/*
+              LOS DISTINTIVOS, todos a la derecha.
+
+              Estaban a la IZQUIERDA del número y lo empujaban: el
+              identificador de la conversación se movía de sitio según
+              estuviera fijada, marcada o con el canal pausado, así que al
+              recorrer la lista los números no quedaban alineados y costaba
+              leerlos en vertical. Ahora el número siempre arranca en el
+              mismo punto y lo que baila es el borde derecho, que no se lee.
+
+              El canal (MX) y la HORA ya no están aquí: se han ido abajo, a
+              la columna de acciones, cada uno bajo su icono. Esta línea es
+              la que identifica al cliente y era la que más se apelotonaba en
+              un móvil estrecho —número, nombre, chip, tres iconos y hora—;
+              quitando los dos que no son de esta conversación sino de
+              cuándo y por dónde, el nombre recupera todo el ancho que le
+              sobraba.
+
+              `ml-auto` en el grupo: lo empuja contra el borde tanto si hay
+              nombre como si no.
+            */}
+            <span className="ml-auto flex shrink-0 items-center gap-1.5">
+              {callada && (
+                <BotOff className="h-3.5 w-3.5 text-alerta" aria-label="María pausada en este canal" />
+              )}
+              {marcada && (
+                <Bookmark
+                  className="h-3.5 w-3.5 fill-current text-amber-400"
+                  aria-label="Revisado hasta aquí"
+                />
+              )}
+              {conv.fijada && (
+                <Pin className="h-3.5 w-3.5 fill-current text-acento" aria-label="Fijada" />
+              )}
             </span>
-            {canal && (
-              <span
-                title={canal.nombre}
-                className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold text-texto2 ring-1 ring-borde"
-              >
-                {distintivo(canal)}
-              </span>
-            )}
           </div>
 
           <div className="mt-0.5 flex items-center gap-1.5">
@@ -557,7 +567,7 @@ function Fila({
           `acciones-fila` las deja siempre visibles en pantallas sin hover, que
           es donde no hay forma de descubrirlas de otra manera. Ver index.css.
         */}
-        <div className="relative flex shrink-0 items-center gap-0.5 self-start">
+        <div className="relative grid shrink-0 grid-cols-3 content-between justify-items-center gap-x-0.5 self-stretch">
           <button
             onClick={(e) => { e.stopPropagation(); fijada.mutate({ clienteId: conv.cliente_id, valor: !conv.fijada }) }}
             className={[
@@ -588,6 +598,41 @@ function Fila({
               las otras acciones y asoma al pasar por encima. Esa lógica vive
               dentro del componente, que es quien sabe en qué estado está. */}
           <CarritoPedido conv={conv} compacto />
+
+          {/*
+            SEGUNDA FILA de la columna: la HORA bajo el favorito y el CANAL
+            bajo el carrito. Antes vivían en la línea 1, apretando al número
+            y al nombre.
+
+            Van aquí y no sueltas en el texto porque no son datos de la
+            conversación —no dicen quién es ni qué quiere—, son el CUÁNDO y
+            el POR DÓNDE. Puestas en la misma rejilla que los iconos caen
+            cada una bajo el suyo y la columna derecha se lee como un
+            bloque, no como cosas repartidas por la fila.
+
+            `grid-cols-3` compartido por las dos filas es lo que garantiza
+            la alineación: si la hora fuese un `flex` aparte, cualquier
+            cambio de ancho —"9:05" contra "ayer"— la descolocaría respecto
+            al icono de arriba. La celda 1 va vacía a propósito: debajo de
+            la chincheta no hay nada que poner.
+
+            `content-between` las baja al pie de la fila, a la altura del
+            nombre del producto. No chocan con él: son columnas hermanas de
+            un flex, así que el producto trunca dentro de la suya y esta se
+            queda con su ancho pase lo que pase.
+          */}
+          <span aria-hidden />
+          <span className="whitespace-nowrap text-[11px] leading-none text-texto2 tabular-nums">
+            {horaLista(conv.ultimo_en)}
+          </span>
+          {canal && (
+            <span
+              title={canal.nombre}
+              className="whitespace-nowrap rounded px-1 py-0.5 text-[10px] font-semibold leading-none text-texto2 ring-1 ring-borde"
+            >
+              {distintivo(canal)}
+            </span>
+          )}
         </div>
       </div>
     </div>
