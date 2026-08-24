@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  Star, Inbox as IconoInbox, BellOff, Ban, X, Package, Search, Tag, ShoppingCart, Radio,
+  Star, Inbox as IconoInbox, BellOff, Ban, X, Boxes, Search, Tag, ShoppingCart, Radio,
 } from 'lucide-react'
 import { useUI, type Bandeja } from '@/store/ui'
 import { useEtiquetas, useCanales } from '@/hooks/datos'
@@ -203,7 +203,7 @@ export function FiltrosLista({ conversaciones }: { conversaciones: Conversacion[
                   colapsado al icono mientras no haya ninguno elegido. */}
               {productos.length > 0 && (
                 <label className="relative flex shrink-0 items-center" title="Filtrar por producto">
-                  <Package className={[
+                  <Boxes className={[
                     'pointer-events-none absolute left-2 h-4 w-4',
                     productoFiltro ? 'text-fondo' : 'text-texto2',
                   ].join(' ')} />
