@@ -6,7 +6,10 @@ import { capacidadesDe, estadoVentana } from '@/lib/canales'
 import { useUI } from '@/store/ui'
 import { useQueryClient } from '@tanstack/react-query'
 import { claves } from '@/hooks/datos'
-import type { Conversacion, Canal, MensajeOptimista } from '@/tipos'
+import {
+  useComandos, ListaComandos, teclasComandos, aplicarRespuesta,
+} from './ComandosRespuestas'
+import type { Conversacion, Canal, MensajeOptimista, RespuestaRapida } from '@/tipos'
 
 export function Redactor({ conv, canal }: { conv: Conversacion; canal: Canal | undefined }) {
   const [texto, setTexto] = useState('')
@@ -21,8 +24,30 @@ export function Redactor({ conv, canal }: { conv: Conversacion; canal: Canal | u
   const [progreso, setProgreso] = useState<number | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
   const ficheroRef = useRef<HTMLInputElement>(null)
+  const campoRef = useRef<HTMLTextAreaElement>(null)
   const qc = useQueryClient()
   const { anadirOptimista, marcarFallo, quitarOptimista } = useUI()
+
+  // Los comandos de «/». El desplegable solo se abre cuando el campo entero es
+  // «/algo»: nunca a media frase, así que escribir una fecha con barras o
+  // «y/o» no lo despierta.
+  const comandos = useComandos(texto)
+
+  function elegirRespuesta(r: RespuestaRapida) {
+    // Se INSERTA, no se envía. Una plantilla casi siempre necesita un retoque,
+    // y mandarla directa convierte un dedo torpe en un mensaje a un cliente.
+    const nuevo = aplicarRespuesta(r)
+    setTexto(nuevo)
+    // El cursor al final y el foco de vuelta al campo, para poder seguir
+    // escribiendo sin tocar el ratón. En el siguiente pintado, que es cuando
+    // el textarea ya tiene el texto puesto.
+    requestAnimationFrame(() => {
+      const el = campoRef.current
+      if (!el) return
+      el.focus()
+      el.setSelectionRange(nuevo.length, nuevo.length)
+    })
+  }
 
   const cap = capacidadesDe(canal, conv.canal)
   const ventana = estadoVentana(conv, cap)
@@ -151,6 +176,9 @@ export function Redactor({ conv, canal }: { conv: Conversacion; canal: Canal | u
   }
 
   function teclas(e: KeyboardEvent<HTMLTextAreaElement>) {
+    // El desplegable manda primero. Es lo que evita que Enter, estando la
+    // lista abierta, mande «/env» al cliente en vez de elegir la respuesta.
+    if (comandos.abierto && teclasComandos(e, comandos, elegirRespuesta)) return
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); mandar() }
   }
 
@@ -175,7 +203,19 @@ export function Redactor({ conv, canal }: { conv: Conversacion; canal: Canal | u
   }
 
   return (
-    <div className="shrink-0 border-t border-borde bg-panel">
+    // `relative` para que el desplegable de «/» se ancle aquí y salga HACIA
+    // ARRIBA: el campo está abajo del todo y una lista hacia abajo quedaría
+    // fuera de la pantalla.
+    <div className="relative shrink-0 border-t border-borde bg-panel">
+      {comandos.abierto && (
+        <ListaComandos
+          lista={comandos.lista}
+          indice={comandos.indice}
+          onElegir={elegirRespuesta}
+          onSenalar={(i) => comandos.mover(i - comandos.indice)}
+        />
+      )}
+
       {aviso && (
         <div className="flex items-start gap-2 bg-alerta/10 px-4 py-2 text-xs text-alerta">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
@@ -222,11 +262,14 @@ export function Redactor({ conv, canal }: { conv: Conversacion; canal: Canal | u
         )}
 
         <textarea
+          ref={campoRef}
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
           onKeyDown={teclas}
           rows={1}
-          placeholder="Escribe un mensaje"
+          // La pista del «/» va aquí porque si no, nadie descubre que existe:
+          // no hay ningún botón que lo enseñe.
+          placeholder="Escribe un mensaje  ·  / para respuestas rápidas"
           className="max-h-32 min-h-[42px] flex-1 resize-none rounded-2xl bg-panel2 px-4 py-2.5 outline-none placeholder:text-texto2"
         />
 

@@ -303,7 +303,7 @@ export function FiltrosLista({ conversaciones }: { conversaciones: Conversacion[
 
           <button
             onClick={abrirBuscador}
-            title="Buscar   ( / )"
+            title="Buscar   ( Ctrl+B )"
             aria-label="Buscar"
             className={[
               'flex shrink-0 items-center border-l border-borde px-2.5 transition-colors',

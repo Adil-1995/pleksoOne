@@ -1,11 +1,12 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Settings, Tags, Radio, Palette, LogOut } from 'lucide-react'
+import { ArrowLeft, Settings, Tags, Radio, Palette, Zap, LogOut } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { InterruptorTema } from '@/componentes/InterruptorTema'
 import { PanelEtiquetas } from '@/componentes/ajustes/PanelEtiquetas'
 import { PanelCanales } from '@/componentes/ajustes/PanelCanales'
 import { PanelApariencia } from '@/componentes/ajustes/PanelApariencia'
+import { PanelRespuestas } from '@/componentes/ajustes/PanelRespuestas'
 
 /**
  * Ajustes, con pestañas.
@@ -18,6 +19,7 @@ import { PanelApariencia } from '@/componentes/ajustes/PanelApariencia'
  */
 const PESTANAS = [
   { id: 'etiquetas',  nombre: 'Etiquetas',  icono: Tags,    Panel: PanelEtiquetas },
+  { id: 'respuestas', nombre: 'Respuestas', icono: Zap,     Panel: PanelRespuestas },
   { id: 'canales',    nombre: 'Canales',    icono: Radio,   Panel: PanelCanales },
   { id: 'apariencia', nombre: 'Apariencia', icono: Palette, Panel: PanelApariencia },
 ] as const

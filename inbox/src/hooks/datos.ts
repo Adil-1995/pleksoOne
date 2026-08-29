@@ -9,7 +9,13 @@ import {
   marcarProducto, quitarProducto, crearCanal, editarCanal,
   leerMarcas, ponerMarca, quitarMarca,
 } from '@/lib/conversaciones'
-import type { Canal, Conversacion, Mensaje, Adjunto, Etiqueta, EstadoProducto, MarcaRevision } from '@/tipos'
+import {
+  leerRespuestas, crearRespuesta, editarRespuesta, borrarRespuesta,
+} from '@/lib/respuestas'
+import type {
+  Canal, Conversacion, Mensaje, Adjunto, Etiqueta, EstadoProducto, MarcaRevision,
+  RespuestaRapida,
+} from '@/tipos'
 
 export const claves = {
   canales: ['canales'] as const,
@@ -19,6 +25,7 @@ export const claves = {
   mensajes: (clienteId: string) => ['mensajes', clienteId] as const,
   conversacionesCorruptas: ['conversaciones-corruptas'] as const,
   marcas: ['marcas-revision'] as const,
+  respuestas: ['respuestas-rapidas'] as const,
 }
 
 // ── Canales ──────────────────────────────────────────────────────────────
@@ -499,6 +506,14 @@ export function useRealtime(clienteAbierto?: string) {
         { event: '*', schema: 'public', table: 'canales' },
         () => { qc.invalidateQueries({ queryKey: claves.canales }) },
       )
+      // Las respuestas rápidas, por lo mismo que las etiquetas: si creas una
+      // en el PC y el móvil no se entera hasta recargar, escribes «/envio» en
+      // el móvil y el desplegable sale vacío.
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'respuestas_rapidas' },
+        () => { qc.invalidateQueries({ queryKey: claves.respuestas }) },
+      )
       // La marca de «revisado hasta aquí» es de las que MÁS falta hacen
       // aquí: se pidió para verla igual desde el móvil y desde el PC, y sin
       // esto marcar en uno dejaría la raya vieja pintada en el otro. Dos
@@ -540,4 +555,41 @@ export function useRealtime(clienteAbierto?: string) {
 
     return () => { supabase.removeChannel(canal) }
   }, [qc, clienteAbierto])
+}
+
+// ── Respuestas rápidas ───────────────────────────────────────────────────
+/**
+ * La lista entera, cargada de una vez. Son decenas de filas y el filtrado del
+ * desplegable se hace en memoria mientras escribes: pedirle a Supabase una
+ * consulta por cada tecla sería más lento y además parpadearía.
+ */
+export function useRespuestas() {
+  return useQuery({
+    queryKey: claves.respuestas,
+    queryFn: leerRespuestas,
+    staleTime: 5 * 60_000,   // cambian poco, y Realtime avisa de lo que cambie
+  })
+}
+
+/**
+ * Alta, edición y borrado. Sin optimismo, igual que los canales: son pocas y
+ * poco frecuentes, y aquí importa más ver el error exacto —un atajo repetido,
+ * por ejemplo— que la instantaneidad.
+ */
+export function useGestionRespuestas() {
+  const qc = useQueryClient()
+  const refrescar = () => { qc.invalidateQueries({ queryKey: claves.respuestas }) }
+  return {
+    crear: useMutation({
+      mutationFn: ({ atajo, texto }: { atajo: string; texto: string }) =>
+        crearRespuesta(atajo, texto),
+      onSuccess: refrescar,
+    }),
+    editar: useMutation({
+      mutationFn: ({ id, ...cambios }: { id: number } & Partial<RespuestaRapida>) =>
+        editarRespuesta(id, cambios),
+      onSuccess: refrescar,
+    }),
+    borrar: useMutation({ mutationFn: borrarRespuesta, onSuccess: refrescar }),
+  }
 }

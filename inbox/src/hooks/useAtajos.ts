@@ -4,9 +4,17 @@ import { useUI } from '@/store/ui'
 import type { Conversacion } from '@/tipos'
 
 /**
- * Atajos de teclado: j/k mover, / buscar, Esc cerrar.
- * No se disparan mientras escribes en un campo, que si no sería imposible
- * teclear una barra dentro de un mensaje.
+ * Atajos de teclado: j/k mover, Ctrl+B buscar, Esc cerrar.
+ *
+ * Las teclas SUELTAS (j, k) no se disparan mientras escribes en un campo: si
+ * no, sería imposible teclear una jota dentro de un mensaje.
+ *
+ * Ctrl+B SÍ funciona escribiendo, y a propósito. Es un acorde, no se pulsa sin
+ * querer, y si solo funcionara fuera del campo habría que salir del mensaje
+ * para poder buscar.
+ *
+ * La barra ya no abre el buscador: ahora es de los comandos de respuestas
+ * rápidas del campo de mensaje (ver ComandosRespuestas.tsx).
  */
 export function useAtajos(conversaciones: Conversacion[]) {
   const navegar = useNavigate()
@@ -39,15 +47,21 @@ export function useAtajos(conversaciones: Conversacion[]) {
         return
       }
 
-      if (escribiendo(e.target) || e.metaKey || e.ctrlKey || e.altKey) return
-
-      if (e.key === '/') {
+      // Ctrl+B / Cmd+B: buscar. Va ANTES del corte de «estás escribiendo»
+      // porque tiene que funcionar también con el cursor en el mensaje.
+      //
+      // El preventDefault no es decorativo: en Firefox, Ctrl+B abre la barra
+      // lateral de marcadores. En Chrome y Edge no está asignado (los
+      // marcadores son Ctrl+Shift+B). Dentro del campo no pisa la negrita
+      // porque el compositor es un <textarea>, y ahí Ctrl+B no hace nada en
+      // ningún navegador: la negrita solo existe en texto enriquecido.
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'b') {
         e.preventDefault()
-        // Abrir y enfocar lo hace el propio componente; antes esto buscaba
-        // un input que ahora solo existe cuando el buscador está desplegado.
         abrirBuscador()
         return
       }
+
+      if (escribiendo(e.target) || e.metaKey || e.ctrlKey || e.altKey) return
 
       if (e.key === 'j' || e.key === 'k') {
         e.preventDefault()

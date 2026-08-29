@@ -344,6 +344,14 @@ formatear, así que no llegó ninguno.
   Por canal y no global porque la lista mezcla los dos números ordenados por
   fecha: sobre esa mezcla, una sola marca no significa nada. Compartida entre
   usuarios a propósito — es la marca del equipo; quién la puso va en `marcado_por`.
+- `respuestas_rapidas` (12-respuestas-rapidas.sql) — los comandos de «/» del campo
+  de mensaje. Compartidas por todo el equipo, igual que las etiquetas: dos personas
+  atendiendo el mismo WhatsApp tienen que contestar lo mismo, y con listas privadas
+  la dirección de devoluciones se corrige en una y no en la otra. `atajo` se guarda
+  **sin la barra** (`envio`, se escribe `/envio`) y con índice único sobre
+  `lower(atajo)`. **El texto se INSERTA en el campo, nunca se envía solo**: una
+  plantilla casi siempre necesita un retoque, y mandarla directa convierte un dedo
+  torpe en un mensaje a un cliente real.
 - NO borres tablas, columnas ni datos sin preguntarme antes.
 - La `service_role` se salta RLS: solo en n8n y en el servidor. NUNCA en
   ficheros del frontend ni en el repo del inbox.

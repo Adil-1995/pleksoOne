@@ -292,3 +292,24 @@ export type MensajeEnLista = Mensaje | MensajeOptimista
 export function esOptimista(m: MensajeEnLista): m is MensajeOptimista {
   return (m as MensajeOptimista).optimista === true
 }
+
+/**
+ * Respuesta guardada del equipo. Se invoca con «/» en el campo de mensaje.
+ *
+ * `atajo` va SIN la barra: se guarda «envio» y se escribe «/envio». La barra
+ * es cómo se invoca, no parte del nombre.
+ *
+ * El texto se INSERTA en el campo, nunca se envía solo: una plantilla casi
+ * siempre necesita un retoque antes de salir, y mandarla directa convierte
+ * un dedo torpe en un mensaje a un cliente real.
+ */
+export interface RespuestaRapida {
+  id: number
+  atajo: string
+  texto: string
+  orden: number
+  /** Quién la creó. Informativo: no restringe quién puede editarla. */
+  creado_por: string | null
+  creado: string
+  actualizado: string
+}
