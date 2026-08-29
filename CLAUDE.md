@@ -34,18 +34,37 @@ Si dudas de si algo es destructivo, pregunta. Prefiero una pregunta de más.
 | Postgres | contenedor `bot-postgres-1`, user `admin`, db `appdb` |
 | Caddy | reverse proxy, HTTPS por DuckDNS |
 | Evolution API | v2.3.1, instancia `plekso` — **en retirada** |
-| WhatsApp Cloud API | webhook `https://plekso.duckdns.org/webhook/wa-cloud` (GET verificación + POST mensajes, misma ruta) |
+| WhatsApp Cloud API | webhook `https://plekso.duckdns.org/webhook/wa-cloud-multi` (GET verificación + POST mensajes, misma ruta) |
 | Modelo | `gpt-5.6-sol`, maxTokens 500 |
 
 **4 GB de RAM es un límite real.** Supabase autoalojado NO cabe: usamos Supabase Cloud.
 
 ### Workflows de n8n
+**Comprobado contra la BD el 29/8/2026.** El `name` de un workflow miente: el
+receptor vivo se sigue llamando «(copia, desactivada)» y es el que atiende a
+todos los clientes. Fíate del ID y del tráfico, nunca del nombre.
+
 | ID | Nombre | Estado |
 |---|---|---|
-| `TlNYwTxmZP9K9tKE` | LumaBot IA v3 | **activo, producción** — no tocar |
-| `pSzeGNsQXDTMFGs3` | LumaBot Cloud API — Fase 1 (recepción) | activo, la nueva vía |
+| `qx1O54zpuyxzfW8V` | LumaBot Cloud API — Fase 7 MULTICANAL | **RECEPTOR VIVO**, ruta `wa-cloud-multi` — 2 426 ejecuciones en 3 días |
+| `CYgKApb26ARGlhVZ` | LumaBot — Salida WhatsApp MULTICANAL | **SUBFLUJO DE SALIDA VIVO** — 1 337 ejecuciones |
+| `qXCipdF2Blm0v6HI` | LumaBot — Purchase al CAPI (validación) | activo |
+| `YGqvrxFadgtdS7Lo` | LumaBot Inbox — Webhook de envío | activo, ruta `inbox-enviar` |
+| `4uK8Dpsi8JA9GGaA` | Fase 3 tanda 1 (persistencia) | activo y dueño de la ruta `wa-cloud`, pero **sin tráfico**: Meta apunta a `wa-cloud-multi` |
+| `fUnaKZ51BWB2qJ7U` | Salida WhatsApp (punto único) | activo, sin tráfico — lo sustituyó `CYgKApb26ARGlhVZ` |
+| `BtqTW7ZiLKIDD1nv` | Fase 3 tanda 3b | activo, histórico, ruta `wa-cloud-3b`, sin tráfico de Meta |
+| `TlNYwTxmZP9K9tKE` | LumaBot IA v3 | **inactivo** (era el de Evolution API) |
+| `pSzeGNsQXDTMFGs3` | Fase 1 (recepción) | inactivo |
 
 El resto de workflows del listado son copias históricas, todas inactivas.
+
+Para saber cuál es el vivo sin fiarte de ningún nombre:
+
+```sql
+select e."workflowId", count(*), max(e."startedAt")
+from execution_entity e where e."startedAt" > now() - interval '4 hours'
+group by 1 order by 3 desc;
+```
 
 ### Secretos: `/opt/bot/wa.env`
 Fichero con permisos `600`, montado en el contenedor de n8n con `env_file`.
@@ -130,12 +149,12 @@ Al cambiar cualquiera hay que recrear el contenedor:
   n8n 2.x rechaza el publish con *«references workflow X which is not published»*.
   Y lo peligroso: **un `PUT` sobre un subflujo lo despublica**, así que actualizar
   el subflujo de salida tumba en cascada a todo lo que lo referencia — nos dejó
-  `/webhook/wa-cloud` devolviendo **404 sin un solo error en el log**.
+  `/webhook/wa-cloud-multi` devolviendo **404 sin un solo error en el log**.
   **Orden obligatorio tras tocar el subflujo:**
-  1. `POST /api/v1/workflows/fUnaKZ51BWB2qJ7U/activate`  ← el subflujo primero
-  2. `POST /api/v1/workflows/4uK8Dpsi8JA9GGaA/activate`  ← después los que lo llaman
+  1. `POST /api/v1/workflows/CYgKApb26ARGlhVZ/activate`  ← el subflujo primero
+  2. `POST /api/v1/workflows/qx1O54zpuyxzfW8V/activate`  ← después los que lo llaman
   3. Comprobar que responde de verdad, no fiarse del 200 del activate:
-     `curl "https://plekso.duckdns.org/webhook/wa-cloud?hub.mode=subscribe&hub.verify_token=...&hub.challenge=1234"`
+     `curl "https://plekso.duckdns.org/webhook/wa-cloud-multi?hub.mode=subscribe&hub.verify_token=...&hub.challenge=1234"`
      tiene que devolver `1234`. Si da 404, el webhook no está registrado
 - El `active` de la BD puede decir `t` justo después de un activate y estar en `f`
   minutos después. **La única prueba fiable es que `webhook_entity` tenga filas y

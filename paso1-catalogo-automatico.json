@@ -1133,7 +1133,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// FILTRO DE SEGURIDAD v5 — anti extracción\n// Dos capas independientes:\n//   A) qué PIDIÓ el cliente  -> si es un intento de sacar el prompt, la\n//      respuesta de María se descarta pase lo que pase.\n//   B) qué RESPONDIÓ María   -> aunque la pregunta pareciera inocente.\n\nconst salida  = $('AI Agent').item.json.output || '';\nconst entrada = ($('Añadir contexto').first().json.texto_acumulado || '').toLowerCase();\n\n// ---------- Limpieza de señales internas ----------\nlet respuesta = salida\n  .replace(/\\[PEDIDO\\][\\s\\S]*?\\[\\/PEDIDO\\]/gi, '')\n  .replace(/\\[PEDIDO_COMPLETO\\][\\s\\S]*?\\[\\/PEDIDO_COMPLETO\\]/gi, '')\n  .replace(/\\[FICHA:[a-zA-Z0-9_-]+\\]/gi, '')\n  .replace(/\\[FOTO:[a-zA-Z0-9_-]+\\]/gi, '')\n  .replace(/\\[FOTO_OFERTA\\]/gi, '')\n  .replace(/\\[ESCALAR:[\\s\\S]*?\\]/gi, '')\n  .trim();\n\nconst texto = respuesta.toLowerCase();\nconst textoNorm  = texto.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');\nconst entradaNorm = entrada.normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');\n\n// ¿La salida era ÚNICAMENTE un [ESCALAR:...]?  -> escalado silencioso:\n// se avisa al grupo pero NO se envía nada al cliente.\nconst teniaEscalar = /\\[ESCALAR:/i.test(salida);\nconst soloEscalar  = teniaEscalar && respuesta.length === 0;\n\n// ¿Emitió un [PEDIDO]? -> silencio TOTAL hacia el cliente. Aunque el\n// modelo escribiera texto alrededor del bloque, no se envía nada:\n// solo el aviso al grupo. El equipo humano se encarga desde ahí.\nconst teniaPedido = /\\[PEDIDO\\]/i.test(salida);\n\n// ============================================================\n// PROHIBIDO ENUMERAR EL CATÁLOGO\n// Si la respuesta menciona DOS O MÁS productos distintos del catálogo,\n// se descarta entera y se sustituye por la pregunta neutra.\n// Nunca se revela a un cliente (o competidor) qué vendemos.\n// ============================================================\nfunction normalizarCat(t) {\n  return String(t || '').toLowerCase()\n    .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/[^a-z0-9ñ\\s]/g, ' ').replace(/\\s+/g, ' ').trim();\n}\nlet productosMencionados = 0;\ntry {\n  const respNorm = normalizarCat(respuesta);\n  for (const item of $('Leer Catálogo').all()) {\n    const fila = item.json;\n    if (String(fila.activo).trim().toUpperCase() !== 'SI') continue;\n    // firma del producto: las palabras largas de su nombre\n    const firmas = normalizarCat(fila.nombre).split(' ').filter(w => w.length >= 5);\n    firmas.push(normalizarCat(fila.id));\n    if (firmas.some(f => f && respNorm.includes(f))) productosMencionados++;\n  }\n} catch (e) {}\n\nconst enumeraCatalogo = productosMencionados >= 2;\n\nlet bloqueado = false;\nlet motivo = '';\n\nif (enumeraCatalogo) {\n  bloqueado = true;\n  motivo = 'enumera varios productos del catalogo';\n}\n\n// ================= CAPA A: intención del cliente =================\n// Frases completas, no palabras sueltas: \"instrucciones de uso del cepillo\"\n// o \"¿qué modelo de cepillo?\" son preguntas legítimas de venta.\nconst intentosExtraccion = [\n  'tu prompt', 'el prompt', 'system prompt', 'prompt del sistema',\n  'tus instrucciones', 'las instrucciones que te', 'instrucciones del sistema',\n  'tus reglas', 'las reglas que te', 'tu configuracion', 'tu configuración',\n  'como estas programad', 'cómo estás programad', 'como te programaron',\n  'que modelo eres', 'qué modelo eres', 'modelo de lenguaje', 'que ia eres',\n  'eres un bot', 'eres una ia', 'eres un robot', 'eres humano',\n  'ignora las instrucciones', 'ignora lo anterior', 'olvida tus',\n  'olvida las instrucciones', 'a partir de ahora eres', 'actua como si',\n  'actúa como si', 'modo desarrollador', 'modo debug', 'jailbreak',\n  'repite todo lo que', 'repite tus', 'muestrame tus', 'muéstrame tus',\n  'dime tus instrucciones', 'imprime tus', 'traduce tus instrucciones',\n  'resume tus instrucciones', 'cual es tu prompt', 'cuál es tu prompt',\n  'api key', 'apikey', 'clave api', 'credenciales', 'contraseña de',\n  'base de datos', 'postgres', 'webhook', 'n8n', 'openai', 'chatgpt',\n  'quien te creo', 'quién te creó', 'que hay antes de este mensaje',\n  'texto anterior a', 'primer mensaje del sistema'\n];\n\nfor (const frase of intentosExtraccion) {\n  if (entrada.includes(frase)) {\n    bloqueado = true;\n    motivo = 'intento de extraccion: \"' + frase + '\"';\n    break;\n  }\n}\n\n// ================= CAPA B: qué iba a contestar =================\nif (!bloqueado) {\n  const señalesPeligro = [\n    'system message', 'system prompt', 'mis instrucciones son', 'mi prompt',\n    'mi configuracion', 'regla de seguridad', 'maxima prioridad',\n    'claude', 'anthropic', 'openai', 'chatgpt', 'gpt-', 'modelo de lenguaje',\n    'soy una ia', 'soy un bot', 'soy una inteligencia artificial',\n    'language model', 'como asistente de ia', 'mis reglas son',\n    'instrucciones confidenciales', 'no debo revelar', 'ignora lo anterior',\n    'estas instrucciones', 'catalogo de productos disponibles',\n    // marcas propias del prompt: si salen, está volcando el documento\n    'regla de oro', 'muy importante:', 'prohibido', 'cosas que nunca haces',\n    'paso 1', 'paso 2', 'paso 3', 'paso 4', 'paso 5', 'paso 6',\n    'ejemplo exacto', 'contexto:', 'pedido]', 'escalar:',\n    'n8n', 'postgres', 'webhook', 'api key', 'apikey', 'credencial'\n  ];\n  for (const señal of señalesPeligro) {\n    if (texto.includes(señal)) { bloqueado = true; motivo = 'fuga: ' + señal; break; }\n  }\n}\n\n// ================= CAPA C: heurísticas de volcado =================\nif (!bloqueado) {\n  // un prompt volcado trae muchas líneas; una respuesta de venta no\n  const lineas = respuesta.split('\\n').filter(l => l.trim()).length;\n  if (lineas > 14)            { bloqueado = true; motivo = 'demasiadas lineas'; }\n  else if (respuesta.length > 1200) { bloqueado = true; motivo = 'respuesta demasiado larga'; }\n}\n\n// ================= Nunca confirma pedidos por su cuenta =================\nif (!bloqueado) {\n  const frasesConfirmacion = [\n    'su pedido quedo registrado', 'su pedido ha sido registrado',\n    'pedido registrado', 'orden registrada', 'su orden quedo',\n    'ya registre su pedido', 'queda registrado'\n  ];\n  for (const f of frasesConfirmacion) {\n    if (texto.includes(f)) { bloqueado = true; motivo = 'confirmo pedido por su cuenta'; break; }\n  }\n}\n\n// ================= CAPA D: no se enseña el mecanismo =================\n// El cliente no puede leer NUNCA que existe un catálogo, un sistema o unas\n// instrucciones detrás. Rompe que María parezca humana y el prompt ya lo\n// prohíbe, pero el modelo lo desobedece: dijo \"el catálogo no especifica la\n// duración\". Eso ahora se descarta aquí, no se le pide al modelo.\nconst REVELA_INTERNO = [\n  'catalogo',\n  'el sistema no', 'el sistema me', 'el sistema indica', 'el sistema dice',\n  'segun el sistema', 'en el sistema', 'del sistema',\n  'no especifica', 'no lo especifica', 'no viene especificad',\n  'no esta especificad', 'no se especifica',\n  'mis instrucciones', 'mi prompt', 'mis reglas', 'mi configuracion',\n  'la base de datos', 'mi base de datos',\n  'segun mis datos', 'en mis datos', 'mi registro', 'no tengo registrado',\n  'la informacion que tengo', 'los datos que tengo',\n  'la ficha del producto no', 'la ficha tecnica no'\n];\nif (!bloqueado) {\n  for (const frase of REVELA_INTERNO) {\n    if (textoNorm.includes(frase)) {\n      bloqueado = true;\n      motivo = 'revela el funcionamiento interno: \"' + frase + '\"';\n      break;\n    }\n  }\n}\n\n// ================= CAPA E: no se afirma una garantía que no consta =========\n// Si el campo garantía de ESE producto está vacío, María no puede afirmar\n// ninguna. Un campo vacío no es \"sin datos, improvisa\": es un dato que no\n// tenemos y que no se inventa.\n// El producto sale de emparejar contra las palabras_clave del catálogo, igual\n// que en Decidir ficha y en Fila incidencia. El texto del modelo es una PISTA,\n// nunca el dato. Un empate es una duda, y ante la duda NO se bloquea a ciegas:\n// se bloquea solo cuando se sabe de qué producto se habla.\nlet productoBloqueo = '';\nif (!bloqueado && /garant/.test(textoNorm)) {\n  try {\n    const mezcla = entradaNorm + ' ' + textoNorm;\n    let encontrado = null;\n    let empate = false;\n    for (const item of $('Leer Catálogo').all()) {\n      const fila = item.json;\n      if (String(fila.activo).trim().toUpperCase() !== 'SI') continue;\n      const claves = String(fila.palabras_clave || '').split(',')\n        .map(s => s.trim().toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, ''))\n        .filter(s => s.length >= 5);\n      if (claves.some(k => k && mezcla.includes(k))) {\n        if (encontrado && encontrado.id !== fila.id) { empate = true; break; }\n        encontrado = fila;\n      }\n    }\n    if (encontrado && !empate) {\n      // La columna del Sheet se llama 'garantía' CON TILDE. Se busca por nombre\n      // normalizado para que dé igual cómo esté escrita la cabecera.\n      let valor = '';\n      for (const col of Object.keys(encontrado)) {\n        const k = String(col).toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');\n        if (k === 'garantia') { valor = encontrado[col]; break; }\n      }\n      if (String(valor || '').trim() === '') {\n        bloqueado = true;\n        productoBloqueo = encontrado.nombre;\n        motivo = 'afirma garantia y el campo esta vacio para: ' + encontrado.nombre;\n      }\n    }\n  } catch (e) {\n    // Si el emparejamiento falla no se bloquea: un fallo aquí no puede\n    // convertirse en que María deje de contestar a todo el mundo.\n  }\n}\n\nif (!respuesta && !soloEscalar) { bloqueado = true; motivo = 'respuesta vacia'; }\n\n// Respuesta neutra: no confirma ni desmiente nada, y reconduce a la venta\nconst bloqueoDeDato = bloqueado && /^(revela el funcionamiento|afirma garantia)/.test(motivo);\n\nconst mensajeSeguro = bloqueoDeDato\n  ? 'Permítame confirmarle ese dato y le escribo enseguida 😊'\n  : enumeraCatalogo\n    ? 'Con gusto le ayudo 😊 ¿Qué producto le interesa?'\n    : 'Disculpe, no le entendí bien 😊 ¿Sobre qué producto quiere que le ayude?';\n\nreturn [{\n  json: {\n    respuesta_final: bloqueado ? mensajeSeguro : respuesta,\n    solo_escalar: soloEscalar || teniaPedido,\n    bloqueado,\n    motivo_bloqueo: motivo,\n    numero_cliente: $('Variables').item.json.numero_cliente,\n    // Lo que María INTENTÓ decir. Va a Incidencias cuando se bloquea, para\n    // poder verlo; al cliente no le llega nunca.\n    respuesta_bloqueada: bloqueado ? respuesta : '',\n    producto_bloqueo: productoBloqueo\n  }\n}];\n"
+        "jsCode": "// FILTRO DE SEGURIDAD v5 — anti extracción\n// Dos capas independientes:\n//   A) qué PIDIÓ el cliente  -> si es un intento de sacar el prompt, la\n//      respuesta de María se descarta pase lo que pase.\n//   B) qué RESPONDIÓ María   -> aunque la pregunta pareciera inocente.\n\nconst salida  = $('AI Agent').item.json.output || '';\nconst entrada = ($('Añadir contexto').first().json.texto_acumulado || '').toLowerCase();\n\n// ---------- Limpieza de señales internas ----------\nlet respuesta = salida\n  .replace(/\\[PEDIDO\\][\\s\\S]*?\\[\\/PEDIDO\\]/gi, '')\n  .replace(/\\[PEDIDO_COMPLETO\\][\\s\\S]*?\\[\\/PEDIDO_COMPLETO\\]/gi, '')\n  .replace(/\\[FICHA:[a-zA-Z0-9_-]+\\]/gi, '')\n  .replace(/\\[FOTO:[a-zA-Z0-9_-]+\\]/gi, '')\n  .replace(/\\[FOTO_OFERTA\\]/gi, '')\n  .replace(/\\[ESCALAR:[\\s\\S]*?\\]/gi, '')\n  .trim();\n\nconst texto = respuesta.toLowerCase();\n\n// ¿La salida era ÚNICAMENTE un [ESCALAR:...]?  -> escalado silencioso:\n// se avisa al grupo pero NO se envía nada al cliente.\nconst teniaEscalar = /\\[ESCALAR:/i.test(salida);\nconst soloEscalar  = teniaEscalar && respuesta.length === 0;\n\n// ¿Emitió un [PEDIDO]? -> silencio TOTAL hacia el cliente. Aunque el\n// modelo escribiera texto alrededor del bloque, no se envía nada:\n// solo el aviso al grupo. El equipo humano se encarga desde ahí.\nconst teniaPedido = /\\[PEDIDO\\]/i.test(salida);\n\n// ============================================================\n// PROHIBIDO ENUMERAR EL CATÁLOGO\n// Si la respuesta menciona DOS O MÁS productos distintos del catálogo,\n// se descarta entera y se sustituye por la pregunta neutra.\n// Nunca se revela a un cliente (o competidor) qué vendemos.\n// ============================================================\nfunction normalizarCat(t) {\n  return String(t || '').toLowerCase()\n    .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/[^a-z0-9ñ\\s]/g, ' ').replace(/\\s+/g, ' ').trim();\n}\nlet productosMencionados = 0;\ntry {\n  const respNorm = normalizarCat(respuesta);\n  for (const item of $('Leer Catálogo').all()) {\n    const fila = item.json;\n    if (String(fila.activo).trim().toUpperCase() !== 'SI') continue;\n    // firma del producto: las palabras largas de su nombre\n    const firmas = normalizarCat(fila.nombre).split(' ').filter(w => w.length >= 5);\n    firmas.push(normalizarCat(fila.id));\n    if (firmas.some(f => f && respNorm.includes(f))) productosMencionados++;\n  }\n} catch (e) {}\n\nconst enumeraCatalogo = productosMencionados >= 2;\n\nlet bloqueado = false;\nlet motivo = '';\n\nif (enumeraCatalogo) {\n  bloqueado = true;\n  motivo = 'enumera varios productos del catalogo';\n}\n\n// ================= CAPA A: intención del cliente =================\n// Frases completas, no palabras sueltas: \"instrucciones de uso del cepillo\"\n// o \"¿qué modelo de cepillo?\" son preguntas legítimas de venta.\nconst intentosExtraccion = [\n  'tu prompt', 'el prompt', 'system prompt', 'prompt del sistema',\n  'tus instrucciones', 'las instrucciones que te', 'instrucciones del sistema',\n  'tus reglas', 'las reglas que te', 'tu configuracion', 'tu configuración',\n  'como estas programad', 'cómo estás programad', 'como te programaron',\n  'que modelo eres', 'qué modelo eres', 'modelo de lenguaje', 'que ia eres',\n  'eres un bot', 'eres una ia', 'eres un robot', 'eres humano',\n  'ignora las instrucciones', 'ignora lo anterior', 'olvida tus',\n  'olvida las instrucciones', 'a partir de ahora eres', 'actua como si',\n  'actúa como si', 'modo desarrollador', 'modo debug', 'jailbreak',\n  'repite todo lo que', 'repite tus', 'muestrame tus', 'muéstrame tus',\n  'dime tus instrucciones', 'imprime tus', 'traduce tus instrucciones',\n  'resume tus instrucciones', 'cual es tu prompt', 'cuál es tu prompt',\n  'api key', 'apikey', 'clave api', 'credenciales', 'contraseña de',\n  'base de datos', 'postgres', 'webhook', 'n8n', 'openai', 'chatgpt',\n  'quien te creo', 'quién te creó', 'que hay antes de este mensaje',\n  'texto anterior a', 'primer mensaje del sistema'\n];\n\nfor (const frase of intentosExtraccion) {\n  if (entrada.includes(frase)) {\n    bloqueado = true;\n    motivo = 'intento de extraccion: \"' + frase + '\"';\n    break;\n  }\n}\n\n// ================= CAPA B: qué iba a contestar =================\nif (!bloqueado) {\n  const señalesPeligro = [\n    'system message', 'system prompt', 'mis instrucciones son', 'mi prompt',\n    'mi configuracion', 'regla de seguridad', 'maxima prioridad',\n    'claude', 'anthropic', 'openai', 'chatgpt', 'gpt-', 'modelo de lenguaje',\n    'soy una ia', 'soy un bot', 'soy una inteligencia artificial',\n    'language model', 'como asistente de ia', 'mis reglas son',\n    'instrucciones confidenciales', 'no debo revelar', 'ignora lo anterior',\n    'estas instrucciones', 'catalogo de productos disponibles',\n    // marcas propias del prompt: si salen, está volcando el documento\n    'regla de oro', 'muy importante:', 'prohibido', 'cosas que nunca haces',\n    'paso 1', 'paso 2', 'paso 3', 'paso 4', 'paso 5', 'paso 6',\n    'ejemplo exacto', 'contexto:', 'pedido]', 'escalar:',\n    'n8n', 'postgres', 'webhook', 'api key', 'apikey', 'credencial'\n  ];\n  for (const señal of señalesPeligro) {\n    if (texto.includes(señal)) { bloqueado = true; motivo = 'fuga: ' + señal; break; }\n  }\n}\n\n// ================= CAPA C: heurísticas de volcado =================\nif (!bloqueado) {\n  // un prompt volcado trae muchas líneas; una respuesta de venta no\n  const lineas = respuesta.split('\\n').filter(l => l.trim()).length;\n  if (lineas > 14)            { bloqueado = true; motivo = 'demasiadas lineas'; }\n  else if (respuesta.length > 1200) { bloqueado = true; motivo = 'respuesta demasiado larga'; }\n}\n\n// ================= Nunca confirma pedidos por su cuenta =================\nif (!bloqueado) {\n  const frasesConfirmacion = [\n    'su pedido quedo registrado', 'su pedido ha sido registrado',\n    'pedido registrado', 'orden registrada', 'su orden quedo',\n    'ya registre su pedido', 'queda registrado'\n  ];\n  for (const f of frasesConfirmacion) {\n    if (texto.includes(f)) { bloqueado = true; motivo = 'confirmo pedido por su cuenta'; break; }\n  }\n}\n\nif (!respuesta && !soloEscalar) { bloqueado = true; motivo = 'respuesta vacia'; }\n\n// Respuesta neutra: no confirma ni desmiente nada, y reconduce a la venta\nconst mensajeSeguro = enumeraCatalogo\n  ? 'Con gusto le ayudo 😊 ¿Qué producto le interesa?'\n  : 'Disculpe, no le entendí bien 😊 ¿Sobre qué producto quiere que le ayude?';\n\nreturn [{\n  json: {\n    respuesta_final: bloqueado ? mensajeSeguro : respuesta,\n    solo_escalar: soloEscalar || teniaPedido,\n    bloqueado,\n    motivo_bloqueo: motivo,\n    numero_cliente: $('Variables').item.json.numero_cliente\n  }\n}];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -3114,189 +3114,6 @@
       "id": "b3e9d5a1-7c42-4e60-8a15-9f3b62c80d47",
       "name": "Guardar atribución",
       "onError": "continueRegularOutput"
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "cond-bloqueada",
-              "leftValue": "={{ $json.bloqueado }}",
-              "rightValue": "",
-              "operator": {
-                "type": "boolean",
-                "operation": "true",
-                "singleValue": true
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "id": "b10c0000-0001-4000-8000-000000000001",
-      "name": "¿Respuesta bloqueada?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.2,
-      "position": [
-        2100,
-        1330
-      ]
-    },
-    {
-      "parameters": {
-        "jsCode": "// FILA DE INCIDENCIA — respuesta BLOQUEADA por el filtro de salida\n//\n// Rama paralela al camino normal: al cliente ya se le está mandando el mensaje\n// neutro. Esto solo deja constancia de lo que María INTENTÓ decir, que es el\n// dato que hacía falta: sin él solo se sabe que algo se bloqueó.\n\nfunction ahora() {\n  return new Date().toLocaleString('es-MX', {\n    timeZone: 'America/Mexico_City',\n    year: 'numeric', month: '2-digit', day: '2-digit',\n    hour: '2-digit', minute: '2-digit'\n  });\n}\n\nconst f = $('Filtro Seguridad').first().json;\n\nconst vars = $('Variables').first().json;\nlet telefono = vars.numero_cliente;\ntry { telefono = vars.telefono_real || telefono; } catch (e) {}\n\nlet mensajeCliente = '';\ntry { mensajeCliente = $('Juntar mensajes').first().json.texto_acumulado || ''; } catch (e) {}\n\n// El producto: si la capa E ya lo identificó, se usa ese. Si no, se empareja\n// igual que en 'Fila incidencia' — mismo bucle, solo para rellenar la columna.\nlet producto = f.producto_bloqueo || '';\nif (!producto) {\n  try {\n    const texto = (mensajeCliente + ' ' + String(f.respuesta_bloqueada || '')).toLowerCase()\n      .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '');\n    for (const item of $('Leer Catálogo').all()) {\n      const fila = item.json;\n      if (String(fila.activo).trim().toUpperCase() !== 'SI') continue;\n      const claves = String(fila.palabras_clave || '').split(',')\n        .map(s => s.trim().toLowerCase().normalize('NFD').replace(/[\\u0300-\\u036f]/g, ''))\n        .filter(s => s.length >= 5);\n      if (claves.some(k => k && texto.includes(k))) { producto = fila.nombre; break; }\n    }\n  } catch (e) {}\n}\n\nreturn [{ json: {\n  fecha_hora: ahora(),\n  telefono: String(telefono),\n  nombre_wa: vars.nombre_cliente || '',\n  tipo: 'bloqueado',\n  motivo: f.motivo_bloqueo || 'sin motivo indicado',\n  mensaje_cliente: mensajeCliente.slice(0, 500),\n  producto,\n  contexto: 'RESPUESTA BLOQUEADA: ' + String(f.respuesta_bloqueada || '(vacía)').slice(0, 900),\n  estado: ''\n} }];\n"
-      },
-      "id": "b10c0000-0002-4000-8000-000000000002",
-      "name": "Fila incidencia de bloqueo",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        2340,
-        1330
-      ]
-    },
-    {
-      "parameters": {
-        "authentication": "serviceAccount",
-        "operation": "append",
-        "documentId": {
-          "__rl": true,
-          "value": "1NKp7pJ-Fx-yE8IKM-Kgy_cB7d9ToVd6ECyNybDteUPQ",
-          "mode": "list",
-          "cachedResultName": "Catalog Lado Luminoso",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1NKp7pJ-Fx-yE8IKM-Kgy_cB7d9ToVd6ECyNybDteUPQ/edit?usp=drivesdk"
-        },
-        "sheetName": {
-          "__rl": true,
-          "value": 98987734,
-          "mode": "list",
-          "cachedResultName": "Incidencias",
-          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1NKp7pJ-Fx-yE8IKM-Kgy_cB7d9ToVd6ECyNybDteUPQ/edit#gid=98987734"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "fecha_hora": "={{ $json.fecha_hora }}",
-            "telefono": "={{ $json.telefono }}",
-            "nombre_wa": "={{ $json.nombre_wa }}",
-            "tipo": "={{ $json.tipo }}",
-            "motivo": "={{ $json.motivo }}",
-            "mensaje_cliente": "={{ $json.mensaje_cliente }}",
-            "producto": "={{ $json.producto }}",
-            "contexto": "={{ $json.contexto }}",
-            "estado": "={{ $json.estado }}"
-          },
-          "matchingColumns": [],
-          "schema": [
-            {
-              "id": "fecha_hora",
-              "displayName": "fecha_hora",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "telefono",
-              "displayName": "telefono",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "nombre_wa",
-              "displayName": "nombre_wa",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "tipo",
-              "displayName": "tipo",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "motivo",
-              "displayName": "motivo",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "mensaje_cliente",
-              "displayName": "mensaje_cliente",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "producto",
-              "displayName": "producto",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "contexto",
-              "displayName": "contexto",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "estado",
-              "displayName": "estado",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            }
-          ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": false
-        },
-        "options": {}
-      },
-      "id": "b10c0000-0003-4000-8000-000000000003",
-      "name": "Guardar incidencia de bloqueo",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
-      "position": [
-        2580,
-        1330
-      ],
-      "credentials": {
-        "googleApi": {
-          "id": "aRfirRPV9iB2zikq",
-          "name": "Google Sheets account"
-        }
-      },
-      "onError": "continueRegularOutput"
     }
   ],
   "connections": {
@@ -3882,11 +3699,6 @@
         [
           {
             "node": "¿Pedido completo?",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "¿Respuesta bloqueada?",
             "type": "main",
             "index": 0
           }
@@ -4612,32 +4424,11 @@
           }
         ]
       ]
-    },
-    "¿Respuesta bloqueada?": {
-      "main": [
-        [
-          {
-            "node": "Fila incidencia de bloqueo",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Fila incidencia de bloqueo": {
-      "main": [
-        [
-          {
-            "node": "Guardar incidencia de bloqueo",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
     }
   },
   "settings": {
     "executionOrder": "v1",
     "availableInMCP": false
-  }
+  },
+  "staticData": null
 }
