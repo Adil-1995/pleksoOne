@@ -1,0 +1,308 @@
+[
+ {
+  "id": "k8m1XiT2sbjJop9b",
+  "name": "Glowbot WhatsApp -PROD 2",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "qXCipdF2Blm0v6HI",
+  "name": "LumaBot — Purchase al CAPI (validación) — PROD",
+  "active": true,
+  "isArchived": false
+ },
+ {
+  "id": "YGqvrxFadgtdS7Lo",
+  "name": "LumaBot Inbox — Webhook de envío — PROD",
+  "active": true,
+  "isArchived": false
+ },
+ {
+  "id": "o6zoUEnH43oszA3m",
+  "name": "Whatssap AI AGENT3",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "VTRoc2crmTg84xHE",
+  "name": "Glowbot WhatsApp - María FINAL",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "BtqTW7ZiLKIDD1nv",
+  "name": "LumaBot Cloud API — Fase 3 tanda 3b (histórico · wa-cloud-3b · sin tráfico de Meta)",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "rnfq9LEGW2pYVTJk",
+  "name": "Glowbot WhatsApp - María FINAL",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "FTxz2UkQKeBXejWc",
+  "name": "Glowbot WhatsApp - María FINAL",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "KyZFTfcJ0EhFSWWe",
+  "name": "Glowbot WhatsApp - María FINAL",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "4Dkl14NNp2ZBJ1xp",
+  "name": "Glowbot WhatsApp - María FINAL_v6",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "7z98we72bjUBJ0l0",
+  "name": "Glowbot WhatsApp -GION PROD",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "qx1O54zpuyxzfW8V",
+  "name": "Receptor multicanal — PROD",
+  "active": true,
+  "isArchived": false
+ },
+ {
+  "id": "RIzdhrSUB4Yu3dcB",
+  "name": "Glowbot WhatsApp -GION",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "njmnX3bSijQt7kMv",
+  "name": "Glowbot WhatsApp - GPT-5.6 SOL",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "fy3BkNcyt7EjCiyB",
+  "name": "Glowbot WhatsApp - María FINAL22",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "dFqDC4IDza2WEDvE",
+  "name": "Glowbot WhatsApp - María FINAL",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "fUnaKZ51BWB2qJ7U",
+  "name": "LumaBot — Salida WhatsApp (punto único)",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "EI7Apiq3ZI9M0QAI",
+  "name": "Glowbot WhatsApp - María FINAL",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "WK42uugLRHqSxnGc",
+  "name": "Whatssap AI AGENT ORIGINAL",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "l9IvBLJQPuFaeW07",
+  "name": "Glowbot WhatsApp - PROD_1",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "ThmICuZM8bnT8frZ",
+  "name": "Glowbot WhatsApp - PROD 6",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "4uK8Dpsi8JA9GGaA",
+  "name": "LumaBot Cloud API — Fase 3 tanda 1 (persistencia)",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "uy6SosfWGv3keEAG",
+  "name": "Glowbot WhatsApp - EXCLAMACION",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "QHZLqwmQ4yq39CrU",
+  "name": "LumaBot Cloud API — Fase 5 (audio: media + Whisper + reglas)",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "2PPYrPILbSN9fuVK",
+  "name": "Whatssap AI AGENT2",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "XqNuSgdzm3IZArwI",
+  "name": "My workflow",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "5TWyTmNmfiDmvdNg",
+  "name": "Glowbot WhatsApp - PUNTO",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "u8ZSXT4N7FaOaEzU",
+  "name": "Glowbot WhatsApp - prod_2",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "2uOhiYxStfcekHZy",
+  "name": "Glowbot WhatsApp - María FINAL3",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "3ca08bDxir6RTc9O",
+  "name": "Glowbot WhatsApp - María FUNCIONA 100%",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "Cf293niAtN5waPjz",
+  "name": "LumaBot  IA v2-error meta",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "3bsRGsjwmYPlA2zq",
+  "name": "Glowbot WhatsApp - Version 4",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "HGOAiqC5pqNZEJvE",
+  "name": "Whatssap AI AGENT2",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "pSzeGNsQXDTMFGs3",
+  "name": "LumaBot Cloud API — Fase 1 (recepción)",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "BWrPIfxMC6Nkpf03",
+  "name": "LumaBot  IA v1",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "cwZV3eSC07ouAyLx",
+  "name": "Glowbot WhatsApp -PUNTO",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "qyc3AfDNyCvclT8z",
+  "name": "Whatssap AI AGENT",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "TlNYwTxmZP9K9tKE",
+  "name": "LumaBot  IA v3",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "XxBUgNJ17Sznlq3t",
+  "name": "Glowbot WhatsApp - PROD",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "xNt33V58BkDn8wLJ",
+  "name": "Whatssap AI AGENT COMPLEX",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "SLQesqbOvOwEiMvY",
+  "name": "Glowbot WhatsApp - María FINAL",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "dgX2Npbc7bJ5YXUL",
+  "name": "Glowbot WhatsApp -PROD 5",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "CtJ7g4pgrxa89rex",
+  "name": "Whatssap AI AGENT 3",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "Ox8TYw3w8h51dIVJ",
+  "name": "TEMP — lanzador de pruebas tanda 2",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "CYgKApb26ARGlhVZ",
+  "name": "LumaBot — Salida WhatsApp MULTICANAL — PROD",
+  "active": true,
+  "isArchived": false
+ },
+ {
+  "id": "DntZL838xRIoQ3Yw",
+  "name": "Whatssap AI AGENT",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "9C6ocU52vexfKKRb",
+  "name": "Glowbot WhatsApp - María FINAL",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "gxklKbksmqd5s3Qf",
+  "name": "Glowbot WhatsApp -PROD 3",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "foNzr8ZOeOKvtpui",
+  "name": "Glowbot WhatsApp - prod4",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "YkfztSOhqK2oet8l",
+  "name": "Glowbot WhatsApp - PROD 7",
+  "active": false,
+  "isArchived": true
+ },
+ {
+  "id": "kKg7ghVZKHYzJAC3",
+  "name": "Glowbot WhatsApp - PROD 2",
+  "active": false,
+  "isArchived": true
+ }
+]

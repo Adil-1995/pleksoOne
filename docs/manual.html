@@ -1,0 +1,1094 @@
+<title>Manual LumaBot</title>
+<style>
+  :root{
+    --fondo:#fbfaf8; --papel:#fff; --tinta:#1a1a1a; --suave:#5c5c5c; --borde:#e3e0da;
+    --azul:#1d4ed8; --rojo:#b91c1c; --rojoF:#fef2f2; --naranja:#b45309; --naranjaF:#fffbeb;
+    --amarillo:#7c6f1a; --amarilloF:#fefce8; --verde:#15803d; --verdeF:#f0fdf4; --codigoF:#f4f2ee;
+  }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+    --fondo:#16161a; --papel:#1d1d22; --tinta:#e9e7e3; --suave:#a3a09a; --borde:#33333c;
+    --azul:#7fa5ff; --rojo:#fca5a5; --rojoF:#3b1a1a; --naranja:#fcd34d; --naranjaF:#3a2c10;
+    --amarillo:#fde68a; --amarilloF:#33300f; --verde:#86efac; --verdeF:#12301c; --codigoF:#26262d;
+  }}
+  :root[data-theme="dark"]{
+    --fondo:#16161a; --papel:#1d1d22; --tinta:#e9e7e3; --suave:#a3a09a; --borde:#33333c;
+    --azul:#7fa5ff; --rojo:#fca5a5; --rojoF:#3b1a1a; --naranja:#fcd34d; --naranjaF:#3a2c10;
+    --amarillo:#fde68a; --amarilloF:#33300f; --verde:#86efac; --verdeF:#12301c; --codigoF:#26262d;
+  }
+  *{box-sizing:border-box}
+  body{background:var(--fondo);color:var(--tinta);
+    font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;
+    margin:0;padding:0 20px 80px}
+  .marco{max-width:1000px;margin:0 auto}
+  header{padding:48px 0 28px;border-bottom:2px solid var(--borde);margin-bottom:36px}
+  h1{font-size:2.1rem;margin:0 0 6px;letter-spacing:-.02em}
+  .sub{color:var(--suave);font-size:1.05rem;margin:0 0 18px}
+  .sello{background:var(--papel);border:1px solid var(--borde);border-left:3px solid var(--azul);
+    border-radius:0 6px 6px 0;padding:10px 14px;font-size:.82rem;color:var(--suave)}
+  .sello b{color:var(--tinta)}
+  h2{font-size:1.5rem;margin:52px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--borde);letter-spacing:-.01em}
+  h3{font-size:1.12rem;margin:30px 0 8px}
+  h4{font-size:1rem;margin:22px 0 6px;color:var(--suave);text-transform:uppercase;letter-spacing:.06em}
+  code{background:var(--codigoF);padding:1px 5px;border-radius:4px;font-size:.87em;
+    font-family:"SF Mono",Menlo,Consolas,monospace}
+  pre{background:var(--codigoF);border:1px solid var(--borde);border-radius:7px;
+    padding:12px 14px;overflow-x:auto}
+  pre code{background:none;padding:0;font-size:.83rem;line-height:1.5}
+  .tarjeta{background:var(--papel);border:1px solid var(--borde);border-radius:9px;padding:20px 24px;margin:18px 0}
+  .wf{border-left:3px solid var(--azul)}
+  .id{font-family:"SF Mono",Menlo,monospace;font-size:.78rem;color:var(--suave)}
+  table{width:100%;border-collapse:collapse;font-size:.87rem;margin:12px 0}
+  th{text-align:left;padding:9px 10px;border-bottom:2px solid var(--borde);
+    font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--suave)}
+  td{padding:10px;border-bottom:1px solid var(--borde);vertical-align:top}
+  .envoltorio{overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:.7rem;
+    font-weight:700;letter-spacing:.04em;white-space:nowrap}
+  .critico{background:var(--rojoF);color:var(--rojo);border:1px solid var(--rojo)}
+  .alto{background:var(--naranjaF);color:var(--naranja);border:1px solid var(--naranja)}
+  .medio{background:var(--amarilloF);color:var(--amarillo);border:1px solid var(--amarillo)}
+  .bajo{background:var(--verdeF);color:var(--verde);border:1px solid var(--verde)}
+  tr.f-critico{background:var(--rojoF)}
+  .no{color:var(--rojo);font-weight:700}
+  .si{color:var(--verde);font-weight:700}
+  .resumen{display:flex;gap:10px;flex-wrap:wrap;margin:14px 0}
+  .cuenta{background:var(--papel);border:1px solid var(--borde);border-radius:8px;
+    padding:10px 16px;text-align:center;min-width:96px}
+  .cuenta b{display:block;font-size:1.5rem;line-height:1.2}
+  .mermaid{background:var(--papel);border:1px solid var(--borde);border-radius:9px;
+    padding:18px;margin:16px 0;overflow-x:auto;text-align:center}
+  .aviso{background:var(--naranjaF);border:1px solid var(--naranja);border-left:3px solid var(--naranja);
+    border-radius:0 7px 7px 0;padding:12px 16px;margin:16px 0;font-size:.92rem}
+  ol,ul{padding-left:22px} li{margin:5px 0}
+  footer{margin-top:60px;padding-top:20px;border-top:1px solid var(--borde);
+    font-size:.82rem;color:var(--suave)}
+  .indice{columns:2;column-gap:30px;font-size:.92rem}
+  @media(max-width:640px){.indice{columns:1}}
+  a{color:var(--azul)}
+</style>
+
+<div class="marco">
+<header>
+  <h1>LumaBot — Manual del sistema</h1>
+  <p class="sub">Los cuatro workflows vivos, qué hace cada uno y por dónde se rompe.</p>
+  <div class="sello">
+    <b>Generado el 2026-08-30 14:27 UTC</b>
+    leyendo los workflows vivos por la API de n8n.<br>
+    Receptor multicanal — PROD — 130 nodos · LumaBot — Salida WhatsApp MULTICANAL — PROD — 26 nodos · LumaBot Inbox — Webhook de envío — PROD — 17 nodos · LumaBot — Purchase al CAPI (validación) — PROD — 22 nodos<br>
+    El mapa, las rutas, las tablas, los avisos y la tabla de riesgo salen del JSON.
+    Las explicaciones están en <code>docs/manual/narrativa.mjs</code>.
+  </div>
+</header>
+
+<div class="tarjeta">
+  <h4 style="margin-top:0">Índice</h4>
+  <div class="indice">
+    <a href="#mapa">1. Mapa general</a><br>
+    <a href="#recorrido">2. Recorrido de un mensaje</a><br>
+    <a href="#muerde">3. Lo que me muerde</a><br>
+    <a href="#riesgo">4. Tabla de riesgo</a><br>
+    <a href="#w0">5. Receptor multicanal — PROD</a><br><a href="#w1">6. LumaBot — Salida WhatsApp MULTICANAL — PROD</a><br><a href="#w2">7. LumaBot Inbox — Webhook de envío — PROD</a><br><a href="#w3">8. LumaBot — Purchase al CAPI (validación) — PROD</a><br>
+    <a href="#discrepancias">9. Discrepancias</a><br>
+    <a href="#apendice">10. Apéndice: los inactivos</a>
+  </div>
+</div>
+
+<h2 id="mapa">1. Mapa general</h2>
+
+Cuatro workflows atienden todo. Uno recibe de Meta, uno envía a Meta, y dos
+son puertas que el inbox llama por HTTP. Solo uno de los cuatro habla con
+WhatsApp: <strong>el subflujo de salida es el único punto de salida</strong>,
+y esa es la regla que evita tener la clave repetida en diez sitios.
+
+El grafo de llamadas se genera leyendo los nodos, no está escrito a mano:
+se cruzan el índice <code>workflow_dependency</code> de n8n y un barrido del
+JSON de nodos, y solo se pinta lo que coincide en ambos.
+<pre class="mermaid">graph LR
+  META["Meta / WhatsApp Cloud API"]:::ext
+  INBOX["Inbox (navegador)"]:::ext
+  qx1O54zpuyxzfW8V["Receptor multicanal — PROD<br/><small>GET /wa-cloud-multi<br/>POST /wa-cloud-multi</small>"]:::wf
+  CYgKApb26ARGlhVZ["LumaBot — Salida WhatsApp MULTICANAL — PROD<br/><small>subflujo (executeWorkflowTrigger)</small>"]:::wf
+  YGqvrxFadgtdS7Lo["LumaBot Inbox — Webhook de envío — PROD<br/><small>POST /inbox-enviar</small>"]:::wf
+  qXCipdF2Blm0v6HI["LumaBot — Purchase al CAPI (validación) — PROD<br/><small>POST /capi-purchase</small>"]:::wf
+  META -->|"POST mensajes<br/>GET verificación"| qx1O54zpuyxzfW8V
+  INBOX -->|"POST /inbox-enviar"| YGqvrxFadgtdS7Lo
+  INBOX -->|"POST /capi-purchase"| qXCipdF2Blm0v6HI
+  qx1O54zpuyxzfW8V ==>|llama como subflujo| CYgKApb26ARGlhVZ
+  YGqvrxFadgtdS7Lo ==>|llama como subflujo| CYgKApb26ARGlhVZ
+  CYgKApb26ARGlhVZ -->|"POST /messages"| META
+  qXCipdF2Blm0v6HI -->|"Purchase al CAPI"| META
+  classDef wf fill:#1d4ed8,stroke:#1e3a8a,color:#fff
+  classDef ext fill:#374151,stroke:#111827,color:#fff</pre>
+
+<h2 id="recorrido">2. Recorrido de un mensaje</h2>
+
+<p>Lo que le pasa a un mensaje desde que el cliente pulsa enviar:</p>
+<ol>
+  <li><strong>Meta llama al webhook</strong> <code>POST /wa-cloud-multi</code>.
+      Lo primero que hace el flujo es responder 200 — antes de procesar nada.
+      Si tardas, Meta reintenta y acaba desactivando el webhook.</li>
+  <li><strong>Se valida la firma</strong> <code>X-Hub-Signature-256</code> sobre
+      el cuerpo crudo. Si no cuadra, el mensaje se descarta y no pasa nada más.</li>
+  <li><strong>Se resuelve el canal</strong> por el <code>phone_number_id</code> que
+      manda Meta. No se deduce del texto ni del país del cliente.</li>
+  <li><strong>Se guarda el mensaje</strong> en Supabase antes de decidir nada.
+      Entre o salga, sea del bot o de un humano. Es la regla 1 y no tiene excepciones.</li>
+  <li><strong>Se mira si el bot atiende a este cliente.</strong> Si un humano
+      lo pausó, el flujo para aquí y María no dice nada.</li>
+  <li><strong>El mensaje entra en un buffer</strong> y espera 6 segundos. Si el
+      cliente manda tres mensajes seguidos, se juntan y se contesta una vez.</li>
+  <li><strong>Se compone el prompt</strong> (el común más los datos del canal) y
+      se lee el catálogo de la hoja.</li>
+  <li><strong>El flujo decide si toca ficha</strong> emparejando contra las
+      palabras clave del catálogo. Esa decisión no la toma el modelo.</li>
+  <li><strong>Si no hay ficha, contesta el AI Agent</strong>, y su respuesta pasa
+      por el Filtro Seguridad antes de salir.</li>
+  <li><strong>Todo lo que sale va por el subflujo de salida</strong>, que resuelve
+      por qué número sale, envía, y registra la fila saliente en Supabase.</li>
+</ol>
+<pre class="mermaid">sequenceDiagram
+  autonumber
+  participant C as Cliente
+  participant M as Meta
+  participant R as Receptor
+  participant S as Supabase
+  participant O as Subflujo salida
+  C->>M: escribe por WhatsApp
+  M->>R: POST /wa-cloud-multi
+  R-->>M: 200 (antes de procesar)
+  R->>R: valida X-Hub-Signature-256
+  R->>S: resuelve canal por phone_number_id
+  R->>S: guarda el mensaje (regla 1)
+  R->>S: ¿bot_activo para este cliente?
+  Note over R: buffer de 6 s: junta mensajes seguidos
+  R->>R: compone prompt + lee catálogo
+  R->>R: Decidir ficha (el flujo, no el modelo)
+  alt toca ficha
+    R->>O: ENVIAR ficha directa
+  else contesta el modelo
+    R->>R: AI Agent + Filtro Seguridad
+    R->>O: ENVIAR respuesta
+  end
+  O->>S: ¿por qué número sale?
+  O->>M: POST /messages
+  O->>S: registra la fila saliente
+  O-->>R: {ok, wamid, error}
+  M->>C: María contesta</pre>
+
+<h2 id="muerde">3. Lo que me muerde</h2>
+
+<h3>1. El nombre de un workflow no significa nada</h3>
+<p>Durante meses el receptor que atendía a todos los clientes se llamaba
+«Fase 7 MULTICANAL (copia, desactivada)». El nombre es un campo de texto que
+nadie valida. <strong>Fíate del ID y del tráfico, nunca del nombre.</strong>
+Para saber quién está vivo de verdad:</p>
+<pre><code>select e."workflowId", count(*), max(e."startedAt")
+from execution_entity e
+where e."startedAt" &gt; now() - interval '4 hours'
+group by 1 order by 3 desc;</code></pre>
+
+<h3>2. Orden al publicar: el subflujo primero</h3>
+<p>Un workflow que llama a otro no se puede publicar si el llamado no lo está.
+El orden es siempre <strong>de dentro hacia fuera</strong>:</p>
+<pre><code>1. POST /api/v1/workflows/CYgKApb26ARGlhVZ/activate   ← el subflujo de salida
+2. POST /api/v1/workflows/qx1O54zpuyxzfW8V/activate   ← después el receptor</code></pre>
+<p>Y al revés para apagar: primero el que llama, después el llamado. Si lo haces
+al derecho te quedas un rato con un padre vivo apuntando a un hijo muerto.</p>
+
+<h3>3. Por qué un PUT es peligroso</h3>
+<p>Un <code>PUT</code> sobre un workflow no edita un campo: <strong>reescribe el
+workflow entero</strong>. Sobre un subflujo, eso lo saca de su estado publicado, y
+todo lo que lo referencia cae detrás. Nos dejó
+<code>/webhook/wa-cloud-multi</code> devolviendo 404 <em>sin un solo error en el
+log</em>.</p>
+<p><strong>Para renombrar no hace falta un PUT.</strong> Un <code>UPDATE</code> de
+la columna <code>name</code> es inerte: el trigger
+<code>increment_workflow_version</code> solo incrementa la versión si cambian
+<code>nodes</code> o <code>settings</code>, así que un cambio de nombre no toca
+<code>webhook_entity</code>, ni <code>active</code>, ni la versión. Comprobado:
+los cuatro se renombraron así y el <code>versionCounter</code> no se movió.</p>
+
+<h3>4. Cómo verificar de verdad</h3>
+<p><strong>Un 200 del activate no prueba nada</strong>, y <strong>una ejecución en
+verde tampoco</strong>. El <code>active</code> de la base de datos puede decir
+<code>t</code> justo después de activar y estar en <code>f</code> minutos después.
+Las tres pruebas que sí valen, en este orden:</p>
+<ol>
+  <li><strong><code>webhook_entity</code> tiene filas.</strong> Si el webhook no
+      está registrado ahí, la URL no existe por mucho que <code>active</code> diga
+      que sí.
+      <pre><code>select w."webhookPath", w.method, e.name
+from webhook_entity w join workflow_entity e on e.id = w."workflowId";</code></pre></li>
+  <li><strong>La URL contesta.</strong> Tiene que devolver <code>1234</code>:
+      <pre><code>curl "https://plekso.duckdns.org/webhook/wa-cloud-multi?hub.mode=subscribe&amp;hub.verify_token=$WA_VERIFY_TOKEN&amp;hub.challenge=1234"</code></pre></li>
+  <li><strong>Una conversación real de punta a punta</strong>, y mirando la
+      <em>salida</em> de los nodos, no su color. Lo que hay que ver:
+      <code>Número de salida</code> con <code>por_defecto: false</code>,
+      <code>ENVIAR A WHATSAPP</code> devolviendo un <code>wamid</code> real, y
+      <code>Devolver resultado</code> con <code>ok: true</code>.</li>
+</ol>
+
+<h3>5. Los tres disfraces del corte mudo</h3>
+<p>Los tres fallos del 22 de agosto salieron en verde y sin error en el log:</p>
+<ul>
+  <li><strong>Referenciar un nodo que en esa rama no se ejecutó.</strong> Si un
+      nodo usa <code>$('Otro').item.json.x</code>, comprueba que «Otro» está en
+      <em>todas</em> las ramas que llegan hasta él.</li>
+  <li><strong>Una caída a un valor por defecto que no avisa.</strong> Con un canal
+      acierta por casualidad; con dos, ese acierto es azar. Hoy
+      <code>Número de salida</code> marca <code>por_defecto</code> y hay un aviso
+      colgado de ahí — ese está resuelto.</li>
+  <li><strong>Una rama terminal paralela le roba el retorno al subflujo.</strong>
+      Un subflujo devuelve al padre lo que salga del <em>último nodo ejecutado</em>.
+      Deja el grafo lineal y que todos los caminos acaben en el mismo nodo.</li>
+</ul>
+
+<h3>6. Una alerta sin probar no es una alerta</h3>
+<p>Los dos avisos a Telegram puestos para cazar el fallo 2 devolvían
+<code>{"error":"invalid syntax"}</code> y no llegó ninguno. Y hoy sigue habiendo
+avisos que se tragan su propio fallo: mira la tabla de riesgo, la mitad de las
+filas rojas son nodos de Telegram que, si Telegram falla, no se lo cuentan a
+nadie. <strong>Prueba la alerta provocando el caso.</strong></p>
+
+
+<h2 id="riesgo">4. Tabla de riesgo: los 38 nodos que se tragan un error</h2>
+<p>Estos nodos llevan <code>onError: continueRegularOutput</code>. Cuando fallan,
+<strong>la ejecución sale verde</strong> y algo no ha pasado. Ordenados por gravedad,
+no por workflow. La columna «¿me entero?» es la que importa: en rojo, los que pueden
+fallar sin que nadie se entere.</p>
+
+<div class="resumen">
+  <div class="cuenta"><b class="no">8</b>críticos</div>
+  <div class="cuenta"><b style="color:var(--naranja)">11</b>altos</div>
+  <div class="cuenta"><b style="color:var(--amarillo)">13</b>medios</div>
+  <div class="cuenta"><b class="si">6</b>bajos</div>
+</div>
+
+<div class="aviso">
+  <strong>El patrón que más se repite:</strong> de los 8 críticos,
+  2
+  son <em>nodos de aviso</em> que se tragan su propio fallo, y
+  5
+  son comprobaciones de la pausa manual que fallan <em>abiertas</em>. Es decir: la red
+  de seguridad y el interruptor de emergencia son las dos cosas más frágiles del sistema.
+</div>
+
+<div class="envoltorio">
+<table>
+  <tr><th>Gravedad</th><th>Nodo</th><th>Workflow</th><th>Destino</th>
+      <th>Qué deja de ocurrir</th><th>¿Me entero?</th></tr>
+  <tr class="f-critico">
+    <td><span class="pill critico">CRÍTICO</span></td>
+    <td><code>Cerrar con éxito</code><br><span class="id">→ Responder: enviado</span></td>
+    <td style="font-size:.8rem">LumaBot — Purchase al CAPI (validación)</td>
+    <td style="font-size:.8rem">RPC capi_cerrar POST</td>
+    <td>La marca de que el Purchase ya se reportó. El cerrojo se queda sin cerrar.</td>
+    <td class="no">NO. Y el efecto es que el mismo Purchase se vuelve a mandar en la siguiente validación: conversión duplicada en Meta y datos de anuncios corrompidos, que es dinero mal gastado en pujas.</td>
+  </tr><tr class="f-critico">
+    <td><span class="pill critico">CRÍTICO</span></td>
+    <td><code>Avisar incidencia por Telegram</code><br><span class="id">→ Devolver resultado</span></td>
+    <td style="font-size:.8rem">LumaBot — Salida WhatsApp MULTICANAL</td>
+    <td style="font-size:.8rem">Telegram POST</td>
+    <td>El aviso de que un mensaje NO llegó al cliente.</td>
+    <td class="no">NO. Doble fallo: el cliente no tiene el mensaje y tú no sabes que no lo tiene. La fila sí queda en «mensajes» con estado fallido, pero hay que ir a mirarla.</td>
+  </tr><tr class="f-critico">
+    <td><span class="pill critico">CRÍTICO</span></td>
+    <td><code>Leer estado de la conversación</code><br><span class="id">→ Interpretar estado</span></td>
+    <td style="font-size:.8rem">Receptor multicanal</td>
+    <td style="font-size:.8rem">conversaciones </td>
+    <td>Saber si un humano pausó a este cliente. «Interpretar estado» asume bot_activo = true si el GET no responde bien.</td>
+    <td class="no">NO. El motivo se escribe en el item («no se pudo leer el estado») pero no sale por ningún sitio. María se pone a contestarle a un cliente que alguien había apartado a mano.</td>
+  </tr><tr class="f-critico">
+    <td><span class="pill critico">CRÍTICO</span></td>
+    <td><code>Check ficha</code><br><span class="id">→ Check ficha (adaptar)</span></td>
+    <td style="font-size:.8rem">Receptor multicanal</td>
+    <td style="font-size:.8rem">conversaciones </td>
+    <td>La recomprobación de la pausa a mitad de flujo. «Check ficha (adaptar)» dice literalmente: si no se puede leer, asumimos NO pausado y seguimos.</td>
+    <td class="no">NO. Mismo fallo abierto que el de arriba, pero justo antes de mandar una ficha.</td>
+  </tr><tr class="f-critico">
+    <td><span class="pill critico">CRÍTICO</span></td>
+    <td><code>¿Sigue activo?</code><br><span class="id">→ ¿Sigue activo? (adaptar)</span></td>
+    <td style="font-size:.8rem">Receptor multicanal</td>
+    <td style="font-size:.8rem">conversaciones </td>
+    <td>La recomprobación de la pausa antes de enviar la respuesta del modelo.</td>
+    <td class="no">NO. Falla abierto: si Supabase no contesta, se envía.</td>
+  </tr><tr class="f-critico">
+    <td><span class="pill critico">CRÍTICO</span></td>
+    <td><code>Check oferta</code><br><span class="id">→ Check oferta (adaptar)</span></td>
+    <td style="font-size:.8rem">Receptor multicanal</td>
+    <td style="font-size:.8rem">conversaciones </td>
+    <td>La recomprobación de la pausa antes de mandar una oferta con foto.</td>
+    <td class="no">NO. Falla abierto.</td>
+  </tr><tr class="f-critico">
+    <td><span class="pill critico">CRÍTICO</span></td>
+    <td><code>Check final</code><br><span class="id">→ Check final (adaptar)</span></td>
+    <td style="font-size:.8rem">Receptor multicanal</td>
+    <td style="font-size:.8rem">conversaciones </td>
+    <td>La última recomprobación de la pausa antes de que salga nada.</td>
+    <td class="no">NO. Falla abierto. Es la última red antes del cliente.</td>
+  </tr><tr class="f-critico">
+    <td><span class="pill critico">CRÍTICO</span></td>
+    <td><code>Avisar al dueño - Pedido</code><br><span class="id">→ (terminal)</span></td>
+    <td style="font-size:.8rem">Receptor multicanal</td>
+    <td style="font-size:.8rem">Telegram POST</td>
+    <td>El aviso de una venta. El pedido SÍ queda guardado en «pedidos», pero nadie recibe el ping.</td>
+    <td class="no">NO. Y es el peor caso del sistema: al cliente no se le dice nada por diseño, así que no hay ni un mensaje que delate que hubo pedido. La venta se queda esperando a que alguien mire el inbox.</td>
+  </tr><tr class="">
+    <td><span class="pill alto">Alto</span></td>
+    <td><code>Cerrar con fallo</code><br><span class="id">→ Avisar a Incidencias</span></td>
+    <td style="font-size:.8rem">LumaBot — Purchase al CAPI (validación)</td>
+    <td style="font-size:.8rem">RPC capi_cerrar POST</td>
+    <td>La liberación del cerrojo tras un fallo.</td>
+    <td class="no">NO. Las líneas se quedan tomadas y el Purchase no se reintenta nunca: se pierde la conversión en silencio.</td>
+  </tr><tr class="">
+    <td><span class="pill alto">Alto</span></td>
+    <td><code>Avisar a Incidencias</code><br><span class="id">→ Responder: no enviado</span></td>
+    <td style="font-size:.8rem">LumaBot — Purchase al CAPI (validación)</td>
+    <td style="font-size:.8rem">Telegram POST</td>
+    <td>El aviso de que un Purchase no llegó a Meta.</td>
+    <td class="no">NO. Es el único aviso de esa rama.</td>
+  </tr><tr class="">
+    <td><span class="pill alto">Alto</span></td>
+    <td><code>Avisar número por defecto</code><br><span class="id">→ ¿Solo marcar como leído?</span></td>
+    <td style="font-size:.8rem">LumaBot — Salida WhatsApp MULTICANAL</td>
+    <td style="font-size:.8rem">Telegram POST</td>
+    <td>El aviso de que un mensaje salió por el número equivocado.</td>
+    <td class="no">NO. Y este aviso existe precisamente porque el fallo silencioso de agosto costó una tarde. Si el aviso muere, vuelve el mismo agujero: el cliente recibe un mensaje de un número que no reconoce.</td>
+  </tr><tr class="">
+    <td><span class="pill alto">Alto</span></td>
+    <td><code>Guardar bloqueo</code><br><span class="id">→ Responder al bloqueo</span></td>
+    <td style="font-size:.8rem">LumaBot Inbox — Webhook de envío</td>
+    <td style="font-size:.8rem">conversaciones PATCH</td>
+    <td>La marca local de que el cliente está bloqueado.</td>
+    <td class="no">NO. Meta lo tiene bloqueado y el inbox lo enseña como normal. La base de datos y la realidad discrepan sin que nadie lo sepa.</td>
+  </tr><tr class="">
+    <td><span class="pill alto">Alto</span></td>
+    <td><code>Leer contexto crudo</code><br><span class="id">→ Leer contexto</span></td>
+    <td style="font-size:.8rem">Receptor multicanal</td>
+    <td style="font-size:.8rem">mensajes </td>
+    <td>El contexto de la conversación. «Leer contexto» devuelve texto vacío.</td>
+    <td class="no">NO. María contesta como si acabara de conocer al cliente, en mitad de una conversación.</td>
+  </tr><tr class="">
+    <td><span class="pill alto">Alto</span></td>
+    <td><code>Avisar al dueño</code><br><span class="id">→ (terminal)</span></td>
+    <td style="font-size:.8rem">Receptor multicanal</td>
+    <td style="font-size:.8rem">Telegram POST</td>
+    <td>El aviso de escalar a un humano.</td>
+    <td class="no">NO. El Filtro Seguridad decidió que esto lo tiene que ver una persona, y esa persona no se entera.</td>
+  </tr><tr class="">
+    <td><span class="pill alto">Alto</span></td>
+    <td><code>AUDIO ilegible: ¿sigue activo?</code><br><span class="id">→ AUDIO ilegible: ¿sigue activo? (adaptar)</span></td>
+    <td style="font-size:.8rem">Receptor multicanal</td>
+    <td style="font-size:.8rem">conversaciones </td>
+    <td>La comprobación de pausa en la rama de audio ilegible.</td>
+    <td class="no">NO. Falla abierto, igual que sus hermanos.</td>
+  </tr><tr class="">
+    <td><span class="pill alto">Alto</span></td>
+    <td><code>Avisar canal desconocido</code><br><span class="id">→ Asegurar conversación</span></td>
+    <td style="font-size:.8rem">Receptor multicanal</td>
+    <td style="font-size:.8rem">Telegram POST</td>
+    <td>El único aviso de que entra tráfico por un número sin dar de alta.</td>
+    <td class="no">NO. Los mensajes se siguen guardando, pero nadie se entera de que hay un número sin configurar contestando mal o sin catálogo.</td>
+  </tr><tr class="">
+    <td><span class="pill alto">Alto</span></td>
+    <td><code>Leer prompt del canal</code><br><span class="id">→ Componer prompt</span></td>
+    <td style="font-size:.8rem">Receptor multicanal</td>
+    <td style="font-size:.8rem">httpRequest </td>
+    <td>Los datos del canal (moneda, entrega, saludo). «Componer prompt» se queda con la cadena vacía y sigue.</td>
+    <td class="no">NO. María contesta con el prompt común solamente: precios sin moneda del país, condiciones de entrega genéricas. Suena bien y está mal.</td>
+  </tr><tr class="">
+    <td><span class="pill alto">Alto</span></td>
+    <td><code>Guardar atribución</code><br><span class="id">→ (terminal)</span></td>
+    <td style="font-size:.8rem">Receptor multicanal</td>
+    <td style="font-size:.8rem">conversaciones PATCH</td>
+    <td>El ctwa_clid del anuncio, que solo llega en el primer mensaje del cliente.</td>
+    <td class="no">NO. Nodo terminal. La conversación queda sin atribuir para siempre y el Purchase al CAPI ya no se podrá reportar: la venta existe pero Meta nunca sabrá qué anuncio la trajo.</td>
+  </tr><tr class="">
+    <td><span class="pill alto">Alto</span></td>
+    <td><code>Leer historial del cliente</code><br><span class="id">→ Decidir ficha</span></td>
+    <td style="font-size:.8rem">Receptor multicanal</td>
+    <td style="font-size:.8rem">mensajes </td>
+    <td>El historial con el que «Decidir ficha» decide.</td>
+    <td class="no">NO. Sin historial puede volver a mandar una ficha ya enviada, que es justo el bug que se corrigió en la v4.</td>
+  </tr><tr class="">
+    <td><span class="pill medio">Medio</span></td>
+    <td><code>Guardar adjunto saliente</code><br><span class="id">→ Conversación atendida: no_leidos a 0</span></td>
+    <td style="font-size:.8rem">LumaBot — Salida WhatsApp MULTICANAL</td>
+    <td style="font-size:.8rem">adjuntos POST</td>
+    <td>La fila del adjunto que se acaba de mandar.</td>
+    <td class="no">NO. El cliente tiene la foto y el inbox no la enseña.</td>
+  </tr><tr class="">
+    <td><span class="pill medio">Medio</span></td>
+    <td><code>Canal de la conversación</code><br><span class="id">→ Número de salida</span></td>
+    <td style="font-size:.8rem">LumaBot — Salida WhatsApp MULTICANAL</td>
+    <td style="font-size:.8rem">conversaciones </td>
+    <td>El canal de la conversación, así que «Número de salida» cae al de wa.env.</td>
+    <td class="si">SÍ, si Telegram funciona: «¿Cayó al número por defecto?» lo detecta y avisa. Pero el cliente ya ha recibido el mensaje desde un número que no reconoce.</td>
+  </tr><tr class="">
+    <td><span class="pill medio">Medio</span></td>
+    <td><code>Conversación atendida: no_leidos a 0</code><br><span class="id">→ Devolver resultado</span></td>
+    <td style="font-size:.8rem">LumaBot — Salida WhatsApp MULTICANAL</td>
+    <td style="font-size:.8rem">conversaciones PATCH</td>
+    <td>La puesta a cero del contador de no leídos.</td>
+    <td class="no">NO. La conversación se queda marcada como pendiente en el inbox aunque ya se contestó. Ruido, no pérdida.</td>
+  </tr><tr class="">
+    <td><span class="pill medio">Medio</span></td>
+    <td><code>Bloquear en Meta</code><br><span class="id">→ Leer respuesta de bloqueo</span></td>
+    <td style="font-size:.8rem">LumaBot Inbox — Webhook de envío</td>
+    <td style="font-size:.8rem">Meta Graph ={{ $json.accion === 'bloquear' ? 'POST' : 'DELETE' }}</td>
+    <td>El bloqueo en WhatsApp.</td>
+    <td class="si">SÍ. «Leer respuesta de bloqueo» comprueba el statusCode y traduce el error, y se le devuelve al inbox. La persona que pulsó el botón lo ve.</td>
+  </tr><tr class="">
+    <td><span class="pill medio">Medio</span></td>
+    <td><code>Guardar incidencia</code><br><span class="id">→ (terminal)</span></td>
+    <td style="font-size:.8rem">Receptor multicanal</td>
+    <td style="font-size:.8rem">Google Sheets </td>
+    <td>La fila en la hoja de Incidencias.</td>
+    <td class="no">NO. Nodo terminal. Se pierde el registro para analizar después; no afecta a la conversación.</td>
+  </tr><tr class="">
+    <td><span class="pill medio">Medio</span></td>
+    <td><code>MEDIA buscar mensaje</code><br><span class="id">→ MEDIA fila de adjunto</span></td>
+    <td style="font-size:.8rem">Receptor multicanal</td>
+    <td style="font-size:.8rem">mensajes </td>
+    <td>El mensaje al que colgar el adjunto.</td>
+    <td class="no">Parcialmente: hay una rama «MEDIA sin mensaje al que colgarse», pero no manda aviso.</td>
+  </tr><tr class="">
+    <td><span class="pill medio">Medio</span></td>
+    <td><code>MEDIA guardar adjunto</code><br><span class="id">→ MEDIA marcar en el mensaje</span></td>
+    <td style="font-size:.8rem">Receptor multicanal</td>
+    <td style="font-size:.8rem">adjuntos POST</td>
+    <td>La fila del adjunto. El fichero sí está subido al Storage.</td>
+    <td class="no">NO, pero el inbox no lo enseña: hay un fichero huérfano en el bucket.</td>
+  </tr><tr class="">
+    <td><span class="pill medio">Medio</span></td>
+    <td><code>MEDIA marcar en el mensaje</code><br><span class="id">→ TRANSCRIBIR ¿es audio?</span></td>
+    <td style="font-size:.8rem">Receptor multicanal</td>
+    <td style="font-size:.8rem">mensajes PATCH</td>
+    <td>La marca en «mensajes» de que ese mensaje lleva adjunto.</td>
+    <td class="no">NO. El adjunto existe pero el mensaje no lo sabe.</td>
+  </tr><tr class="">
+    <td><span class="pill medio">Medio</span></td>
+    <td><code>TRANSCRIBIR guardar</code><br><span class="id">→ AUDIO decidir</span></td>
+    <td style="font-size:.8rem">Receptor multicanal</td>
+    <td style="font-size:.8rem">adjuntos PATCH</td>
+    <td>La transcripción guardada en «adjuntos».</td>
+    <td class="no">NO. El flujo sigue con el texto en memoria, así que María contesta bien esta vez; lo que se pierde es el registro para después.</td>
+  </tr><tr class="">
+    <td><span class="pill medio">Medio</span></td>
+    <td><code>AUDIO ilegible: aviso Telegram</code><br><span class="id">→ AUDIO ilegible: ¿enviar?</span></td>
+    <td style="font-size:.8rem">Receptor multicanal</td>
+    <td style="font-size:.8rem">Telegram POST</td>
+    <td>El aviso de un audio que no se pudo transcribir.</td>
+    <td class="no">NO, pero la rama sigue y el cliente recibe igualmente el mensaje de «no te he entendido».</td>
+  </tr><tr class="">
+    <td><span class="pill medio">Medio</span></td>
+    <td><code>Marcar interesado</code><br><span class="id">→ (terminal)</span></td>
+    <td style="font-size:.8rem">Receptor multicanal</td>
+    <td style="font-size:.8rem">conversacion_productos POST</td>
+    <td>La marca de «interesado» en conversacion_productos.</td>
+    <td class="no">NO. Nodo terminal. El embudo pierde una fila: parece que a nadie le interesó ese producto.</td>
+  </tr><tr class="">
+    <td><span class="pill medio">Medio</span></td>
+    <td><code>Marcar pedido pendiente</code><br><span class="id">→ (terminal)</span></td>
+    <td style="font-size:.8rem">Receptor multicanal</td>
+    <td style="font-size:.8rem">conversacion_productos POST</td>
+    <td>La marca de «comprado» en conversacion_productos.</td>
+    <td class="no">NO. Nodo terminal. El pedido está en «pedidos» pero el producto no queda asociado a la conversación.</td>
+  </tr><tr class="">
+    <td><span class="pill medio">Medio</span></td>
+    <td><code>Guardar incidencia de bloqueo</code><br><span class="id">→ (terminal)</span></td>
+    <td style="font-size:.8rem">Receptor multicanal</td>
+    <td style="font-size:.8rem">Google Sheets </td>
+    <td>El registro de una respuesta bloqueada por el Filtro Seguridad.</td>
+    <td class="no">NO. Nodo terminal. Se pierde la señal de que el filtro está actuando y con qué frecuencia.</td>
+  </tr><tr class="">
+    <td><span class="pill bajo">Bajo</span></td>
+    <td><code>Verificar sesión en Supabase</code><br><span class="id">→ Comprobar sesión</span></td>
+    <td style="font-size:.8rem">LumaBot — Purchase al CAPI (validación)</td>
+    <td style="font-size:.8rem">auth GET</td>
+    <td>La validación de la sesión.</td>
+    <td class="si">SÍ, falla cerrado igual que el del inbox.</td>
+  </tr><tr class="">
+    <td><span class="pill bajo">Bajo</span></td>
+    <td><code>ENVIAR A WHATSAPP (único punto de salida)</code><br><span class="id">→ Preparar fila saliente</span></td>
+    <td style="font-size:.8rem">LumaBot — Salida WhatsApp MULTICANAL</td>
+    <td style="font-size:.8rem">Meta Graph POST</td>
+    <td>El mensaje al cliente.</td>
+    <td class="si">SÍ. Es el único nodo del sistema con reintento, y su fallo se comprueba explícitamente en «¿Falló el envío?» y se avisa. Así es como deberían estar todos.</td>
+  </tr><tr class="">
+    <td><span class="pill bajo">Bajo</span></td>
+    <td><code>Avisar fallo de confirmación</code><br><span class="id">→ Leído (no se registra)</span></td>
+    <td style="font-size:.8rem">LumaBot — Salida WhatsApp MULTICANAL</td>
+    <td style="font-size:.8rem">Telegram POST</td>
+    <td>El aviso de que no se pudo marcar como leído.</td>
+    <td class="no">NO, pero lo único que se pierde es el check azul.</td>
+  </tr><tr class="">
+    <td><span class="pill bajo">Bajo</span></td>
+    <td><code>Verificar sesión en Supabase</code><br><span class="id">→ Comprobar sesión</span></td>
+    <td style="font-size:.8rem">LumaBot Inbox — Webhook de envío</td>
+    <td style="font-size:.8rem">auth GET</td>
+    <td>La validación de la sesión.</td>
+    <td class="si">SÍ, y falla CERRADO: «Comprobar sesión» exige statusCode 200 y rol authenticated, así que un fallo devuelve 401. Correcto.</td>
+  </tr><tr class="">
+    <td><span class="pill bajo">Bajo</span></td>
+    <td><code>TRANSCRIBIR con Whisper</code><br><span class="id">→ TRANSCRIBIR leer resultado</span></td>
+    <td style="font-size:.8rem">Receptor multicanal</td>
+    <td style="font-size:.8rem">OpenAI POST</td>
+    <td>La transcripción del audio.</td>
+    <td class="si">SÍ. «TRANSCRIBIR leer resultado» y «AUDIO decidir» tratan el fallo y la rama acaba avisando al cliente de que no se le entendió.</td>
+  </tr><tr class="">
+    <td><span class="pill bajo">Bajo</span></td>
+    <td><code>Buscar canal</code><br><span class="id">→ Resolver canal</span></td>
+    <td style="font-size:.8rem">Receptor multicanal</td>
+    <td style="font-size:.8rem">canales </td>
+    <td>La fila del canal. «Resolver canal» lo trata como canal desconocido.</td>
+    <td class="si">SÍ, avisa por Telegram. El efecto secundario es que durante una caída de Supabase avisaría por cada mensaje.</td>
+  </tr>
+</table>
+</div>
+
+
+<h2 id="w0">5. Receptor multicanal — PROD</h2>
+<div class="tarjeta wf">
+  <div class="id">qx1O54zpuyxzfW8V · 127 nodos · GET /wa-cloud-multi, POST /wa-cloud-multi</div>
+  <h4>Para qué sirve</h4>
+Recibe todo lo que Meta manda de los dos números de WhatsApp: mensajes de
+clientes, acuses de entrega y eventos de estado. Es quien decide si María
+contesta, qué contesta, y quien guarda el rastro de la conversación.
+  <h4>Qué lo dispara</h4>
+Dos nodos webhook sobre la misma ruta <code>wa-cloud-multi</code>: el
+<code>GET</code> atiende la verificación de Meta (devuelve el
+<code>hub.challenge</code>) y el <code>POST</code> recibe los mensajes. Un mismo
+path admite los dos porque la clave primaria de <code>webhook_entity</code> es
+(<code>webhookPath</code>, <code>method</code>).
+</div>
+
+<h3>Bloques, en orden</h3>
+<pre class="mermaid">graph TD
+  B0["Puerta: responder a Meta y validar la firma"]
+  B1["Bifurcación: ¿esto es un mensaje o un acuse de estado?"]
+  B2["Identidad: de qué número nuestro viene"]
+  B3["Guardar antes de decidir"]
+  B4["Interruptor: ¿atiende el bot a este cliente?"]
+  B5["Buffer: juntar mensajes seguidos"]
+  B6["Contexto y prompt"]
+  B7["La ficha la decide el flujo, no el modelo"]
+  B8["El modelo, y el filtro que revisa lo que dice"]
+  B9["Pedido: se guarda, se avisa, y silencio al cliente"]
+  B10["Media y audio"]
+  B11["Salida: todo por el mismo sitio"]
+  B12["Atribución del anuncio"]
+  B0 --> B1
+  B1 --> B2
+  B2 --> B3
+  B3 --> B4
+  B4 --> B5
+  B5 --> B6
+  B6 --> B7
+  B7 --> B8
+  B8 --> B9
+  B9 --> B10
+  B10 --> B11
+  B11 --> B12</pre>
+<div class="tarjeta">
+  <strong>Puerta: responder a Meta y validar la firma</strong>
+  <div class="id" style="margin:4px 0 8px">Webhook mensajes (POST) · Responder 200 a Meta · Validar firma · ¿Firma válida? · Normalizar evento</div>
+  Responde 200 <em>antes</em> de procesar. Luego valida
+        <code>X-Hub-Signature-256</code> sobre el cuerpo crudo — nunca sobre
+        <code>JSON.stringify($json.body)</code>, porque al reserializar cambian
+        emojis y tildes y la firma deja de cuadrar en mensajes reales. Si no
+        cuadra, cae en «Descartar: no autorizado» y ahí acaba.</div><div class="tarjeta">
+  <strong>Bifurcación: ¿esto es un mensaje o un acuse de estado?</strong>
+  <div class="id" style="margin:4px 0 8px">¿Qué tipo de evento? · Traducir estado de Meta · ¿Tiene equivalente? · Actualizar estado</div>
+  La mayor parte del tráfico son acuses (entregado, leído), no
+        mensajes. Esos van por la rama corta: se traduce el estado de Meta al
+        vocabulario propio y se hace un PATCH sobre <code>mensajes</code>. Ojo con
+        el nodo «Sin equivalente»: el CHECK de la columna no admite todos los
+        estados que manda Meta, y los que no encajan se descartan.</div><div class="tarjeta">
+  <strong>Identidad: de qué número nuestro viene</strong>
+  <div class="id" style="margin:4px 0 8px">Buscar canal · Resolver canal · ¿Canal conocido? · Avisar canal desconocido</div>
+  La llave es el <code>phone_number_id</code> de <code>metadata</code>,
+        el único dato fiable de quién recibió el mensaje. Si el número no está dado
+        de alta en <code>canales</code>, el mensaje <strong>se guarda igual</strong>
+        y se avisa por Telegram. Nunca se pierde nada por no tener fila de
+        configuración.</div><div class="tarjeta">
+  <strong>Guardar antes de decidir</strong>
+  <div class="id" style="margin:4px 0 8px">Asegurar conversación · Preparar fila del mensaje · Guardar mensaje entrante · Datos del mensaje guardado</div>
+  Regla 1 del proyecto. <code>asegurar_conversacion</code> es una RPC
+        que crea la conversación si no existe, y después se inserta la fila en
+        <code>mensajes</code>. Un entrante se guarda como <code>entregado</code>:
+        el estado <code>recibido</code> no existe en el CHECK.</div><div class="tarjeta">
+  <strong>Interruptor: ¿atiende el bot a este cliente?</strong>
+  <div class="id" style="margin:4px 0 8px">Leer estado de la conversación · Interpretar estado · ¿El bot atiende a este cliente? · Humano al mando: no responder</div>
+  Lee <code>conversaciones.bot_activo</code>. «Interpretar estado»
+        traduce la respuesta HTTP a un booleano que el IF no pueda malinterpretar,
+        y deja escrito el motivo. Trabaja con el array (<code>[]</code> = 0 filas,
+        <code>[x]</code> = 1) en vez de usar
+        <code>Accept: application/vnd.pgrst.object+json</code>, que n8n no reconoce
+        como JSON y dejaría el cuerpo como cadena.
+        <strong>Cuidado:</strong> si el GET falla, asume que el bot atiende. Ver la
+        tabla de riesgo.</div><div class="tarjeta">
+  <strong>Buffer: juntar mensajes seguidos</strong>
+  <div class="id" style="margin:4px 0 8px">Guardar en buffer · Esperar 6 segundos · ¿Llegaron más mensajes? · ¿Soy el último? · Vaciar buffer · Juntar mensajes</div>
+  El cliente que manda tres mensajes seguidos recibe una respuesta,
+        no tres. Cada mensaje espera 6 segundos y comprueba si llegó otro detrás;
+        solo el último sigue. Vive en <code>buffer_mensajes</code>, en el Postgres
+        viejo, indexado por <code>numero</code>.</div><div class="tarjeta">
+  <strong>Contexto y prompt</strong>
+  <div class="id" style="margin:4px 0 8px">Leer contexto crudo · Leer contexto · ¿Esperando datos? · Añadir contexto · Leer Prompt · Leer prompt del canal · Componer prompt</div>
+  El prompt se compone en dos capas y <strong>nunca al revés</strong>:
+        el común (quién es María, cómo habla, qué no puede hacer) y detrás los datos
+        del canal (moneda, entrega, saludo), etiquetados como datos para que quede
+        claro que ahí no van reglas. «¿Esperando datos?» busca tres cadenas
+        literales en el historial para saber si María pidió ya la dirección; si lo
+        dice de otra forma, falla en silencio — vale para una decisión de un turno,
+        no valdría como estado guardado.</div><div class="tarjeta">
+  <strong>La ficha la decide el flujo, no el modelo</strong>
+  <div class="id" style="margin:4px 0 8px">Leer Catálogo · Preparar Catálogo · Leer historial del cliente · Decidir ficha · ¿Ficha directa? · Ficha ya?</div>
+  Se empareja el mensaje contra las <code>palabras_clave</code> del
+        catálogo. El producto <strong>nunca</strong> sale de una regex sobre el texto
+        del modelo: el texto del modelo vale como pista, jamás como dato. Y un
+        empate es una duda: si dos productos encajan igual, no se marca nada. Un
+        hueco se ve y se investiga; un producto inventado se cuela en los filtros y
+        nadie lo nota.</div><div class="tarjeta">
+  <strong>El modelo, y el filtro que revisa lo que dice</strong>
+  <div class="id" style="margin:4px 0 8px">AI Agent · OpenAI Chat Model · Postgres Chat Memory · Filtro Seguridad · Hay que escalar? · ¿Respuesta bloqueada?</div>
+  Si no tocaba ficha, contesta el AI Agent con memoria en
+        <code>n8n_chat_histories</code>. Su respuesta pasa por «Filtro Seguridad»,
+        que descarta lo que mencione dos o más productos (nunca se enumera el
+        catálogo) y cuenta como firma solo las palabras <em>exclusivas</em> de un
+        producto: contar cualquier palabra de 5+ letras bloqueaba respuestas buenas,
+        porque «carga» está en dos productos.</div><div class="tarjeta">
+  <strong>Pedido: se guarda, se avisa, y silencio al cliente</strong>
+  <div class="id" style="margin:4px 0 8px">¿Pedido completo? · Preparar pedido · Guardar pedido · Apagar tras el pedido · Avisar al dueño - Pedido · ¿Producto identificado? · Marcar pedido pendiente</div>
+  Cuando llegan los datos del pedido: se guarda en
+        <code>pedidos</code>, se apaga el bot para ese cliente, se avisa a Telegram
+        y <strong>no se le dice nada al cliente</strong>. Es deliberado. El efecto
+        secundario es que si el aviso de Telegram falla, nadie se entera de la venta
+        — es la fila más grave de la tabla de riesgo.</div><div class="tarjeta">
+  <strong>Media y audio</strong>
+  <div class="id" style="margin:4px 0 8px">MEDIA ¿trae adjunto? · MEDIA pedir URL a Graph · MEDIA descargar · MEDIA subir a Storage · MEDIA guardar adjunto · MEDIA fallo · TRANSCRIBIR con Whisper · AUDIO decidir</div>
+  Imágenes, audio y vídeo se bajan de Graph, se suben al Storage de
+        Supabase y se cuelgan del mensaje en <code>adjuntos</code>. El audio además
+        pasa por Whisper y, si se entiende, <strong>ese texto es el que ve María</strong>,
+        como si el cliente lo hubiera escrito. Toda la cadena converge en «MEDIA
+        fallo», que emite el mismo contrato que el camino bueno para que «AUDIO
+        decidir» no tenga que saber por dónde se rompió. Es el mejor manejo de
+        errores del sistema.</div><div class="tarjeta">
+  <strong>Salida: todo por el mismo sitio</strong>
+  <div class="id" style="margin:4px 0 8px">Preparar: respuesta · ENVIAR respuesta · Preparar: ficha directa · ENVIAR ficha directa · Preparar: oferta con foto · ENVIAR oferta con foto · Preparar: leído + escribiendo · MARCAR leído + escribiendo</div>
+  Cinco nodos «ENVIAR» distintos, y los cinco llaman al mismo subflujo.
+        Ninguno habla con la API de WhatsApp por su cuenta.</div><div class="tarjeta">
+  <strong>Atribución del anuncio</strong>
+  <div class="id" style="margin:4px 0 8px">Atribución del anuncio · Guardar atribución</div>
+  El <code>ctwa_clid</code> llega en <code>messages[0].referral</code> y
+        <strong>solo en el primer mensaje</strong> del cliente. Si no se captura ahí,
+        el pedido queda sin atribuir y el Purchase al CAPI no se puede reportar.</div>
+
+<h3>Qué escribe, y dónde</h3>
+<div class="tarjeta">
+  <p><strong>Tablas detectadas en el JSON:</strong> <code>rpc/asegurar_conversacion</code> <span class="id">(POST)</span> · <code>mensajes</code> <span class="id">(POST, PATCH, GET)</span> · <code>conversaciones</code> <span class="id">(GET, PATCH)</span> · <code>storage</code> <span class="id">(POST, GET)</span> · <code>adjuntos</code> <span class="id">(POST, PATCH)</span> · <code>conversacion_productos</code> <span class="id">(POST)</span> · <code>canales</code> <span class="id">(GET)</span></p>
+  <p><strong>Nodos que van al Postgres viejo (no Supabase):</strong> <code>Leer fichas enviadas</code> · <code>Guardar en buffer</code> · <code>¿Llegaron más mensajes?</code> · <code>Vaciar buffer</code> · <code>¿Esperando datos?</code> · <code>Postgres Chat Memory</code> · <code>Guardar pedido</code> · <code>Marcar ficha directa</code></p>
+  Escribe en <code>conversaciones</code> (RPC
+    <code>asegurar_conversacion</code>, y PATCH para la atribución),
+    <code>mensajes</code> (insert del entrante, PATCH de estado y de adjunto),
+    <code>adjuntos</code> (insert y PATCH de la transcripción),
+    <code>conversacion_productos</code> (interesado / comprado) y el
+    <strong>Storage</strong> para los ficheros.
+    <br><strong>Y además escribe en el Postgres viejo</strong>, que no es Supabase:
+    <code>buffer_mensajes</code>, <code>pedidos</code>, <code>fichas_enviadas</code>
+    y <code>n8n_chat_histories</code>. Ver discrepancias.
+</div>
+
+<h3>Qué avisa a Telegram, y cuándo</h3>
+<div class="envoltorio"><table>
+  <tr><th>Nodo</th><th>Cuándo salta</th></tr>
+  <tr><td><code>Avisar al dueño</code></td><td>Cuando el Filtro Seguridad decide que hay que escalar a un humano.</td></tr><tr><td><code>Avisar al dueño - Pedido</code></td><td>Cuando se ha guardado un pedido. Es el único aviso de una venta: al cliente no se le dice nada.</td></tr><tr><td><code>Avisar canal desconocido</code></td><td>Cuando entra un mensaje por un número que no está dado de alta en canales.</td></tr><tr><td><code>AUDIO ilegible: aviso Telegram</code></td><td>Cuando llega un audio que Whisper no ha podido transcribir.</td></tr>
+</table></div>
+
+<h3>Qué pasa si falla</h3>
+<div class="tarjeta">
+  
+    <p><strong>Se para</strong> si falla la validación de firma, «Asegurar
+    conversación», «Guardar mensaje entrante», el buffer o «Guardar pedido»:
+    esos nodos no llevan <code>onError</code>, así que la ejecución muere y sale
+    en rojo en la lista. Eso es lo bueno — se ve.</p>
+    <p><strong>Sigue</strong> en 24 nodos marcados
+    <code>onError: continueRegularOutput</code>. La ejecución sale verde y algo no
+    ha pasado. Cuáles y qué se pierde en cada uno, en la tabla de riesgo.</p>
+    <p><strong>Avisa</strong> solo en cuatro sitios, y los cuatro avisos se tragan
+    su propio fallo.</p>
+  <p class="id">Contado del JSON: 24 nodos siguen en silencio ·
+  4 tienen rama de error · 0 reintentan ·
+  18 nodos externos sin marca (paran la ejecución).</p>
+</div>
+<h2 id="w1">6. LumaBot — Salida WhatsApp MULTICANAL — PROD</h2>
+<div class="tarjeta wf">
+  <div class="id">CYgKApb26ARGlhVZ · 25 nodos · sin webhook</div>
+  <h4>Para qué sirve</h4>
+El único punto de salida a WhatsApp. Todo lo que el sistema le dice a un cliente
+pasa por aquí: las respuestas de María, las fichas, las fotos, los acuses de
+lectura y los mensajes que escribe un humano desde el inbox.
+  <h4>Qué lo dispara</h4>
+No tiene webhook. Arranca con <code>executeWorkflowTrigger</code> («Cuando me
+llaman»), invocado por el receptor y por el webhook de envío del inbox.
+</div>
+
+<h3>Bloques, en orden</h3>
+<pre class="mermaid">graph TD
+  B0["Validar lo que le piden"]
+  B1["Por qué número sale"]
+  B2["Enviar y registrar"]
+  B3["Acuse de lectura"]
+  B4["Cierre lineal"]
+  B0 --> B1
+  B1 --> B2
+  B2 --> B3
+  B3 --> B4</pre>
+<div class="tarjeta">
+  <strong>Validar lo que le piden</strong>
+  <div class="id" style="margin:4px 0 8px">Cuando me llaman · Validar petición</div>
+  Comprueba que la petición trae lo que necesita. El
+        <code>cliente_id</code> se exige para todo: cuando no se exigía para
+        <code>marcar_leido</code>, un <code>cliente_id</code> vacío devolvía cero
+        filas y caía al número por defecto sin decir nada.</div><div class="tarjeta">
+  <strong>Por qué número sale</strong>
+  <div class="id" style="margin:4px 0 8px">Canal de la conversación · Número de salida · ¿Cayó al número por defecto? · Avisar número por defecto · ¿Canal habilitado? · Canal desactivado: no se envía</div>
+  Sale por el mismo número por el que entró la conversación, que es
+        el único que el cliente reconoce. Contestar desde otro es, para el cliente,
+        un desconocido escribiéndole. Si no se puede averiguar, cae al de
+        <code>wa.env</code> — <strong>y lo marca</strong>, porque con un solo número
+        acierta y con dos ese acierto es casualidad. Un canal desactivado no envía
+        nada.</div><div class="tarjeta">
+  <strong>Enviar y registrar</strong>
+  <div class="id" style="margin:4px 0 8px">Construir mensaje Cloud API · ENVIAR A WHATSAPP (único punto de salida) · Preparar fila saliente · Registrar salida · ¿Falló el envío? · Avisar incidencia por Telegram</div>
+  El envío es el único nodo del sistema con <code>retryOnFail</code>.
+        Después se registra la fila saliente en <code>mensajes</code> con
+        <code>on_conflict=canal,msg_id_canal</code> para no duplicar. «¿Falló el
+        envío?» lee el <code>ok</code> que calcula «Preparar fila saliente» y manda
+        el aviso: <strong>este es el único sitio del sistema donde un fallo de una
+        API externa se comprueba de verdad y se avisa.</strong></div><div class="tarjeta">
+  <strong>Acuse de lectura</strong>
+  <div class="id" style="margin:4px 0 8px">¿Solo marcar como leído? · Marcar como leído · Leído (no se registra) · Avisar fallo de confirmación</div>
+  El check azul y el «escribiendo…» van por una rama aparte que no
+        registra nada en <code>mensajes</code>. Tiene rama de error propia.</div><div class="tarjeta">
+  <strong>Cierre lineal</strong>
+  <div class="id" style="margin:4px 0 8px">Devolver resultado · Guardar adjunto saliente · Conversación atendida: no_leidos a 0 · Sin adjunto que registrar</div>
+  Todos los caminos acaban en «Devolver resultado», que emite
+        <code>{ok, wamid, error}</code>. Es a propósito: un subflujo devuelve al
+        padre lo que salga del último nodo ejecutado, y una rama terminal paralela
+        le robaría el retorno y dejaría al padre con cero items, en verde.</div>
+
+<h3>Qué escribe, y dónde</h3>
+<div class="tarjeta">
+  <p><strong>Tablas detectadas en el JSON:</strong> <code>rpc/asegurar_conversacion</code> <span class="id">(POST)</span> · <code>mensajes</code> <span class="id">(POST)</span> · <code>adjuntos</code> <span class="id">(POST)</span> · <code>conversaciones</code> <span class="id">(GET, PATCH)</span></p>
+  
+  <code>conversaciones</code> (RPC <code>asegurar_conversacion</code>,
+    GET del canal, PATCH de <code>no_leidos</code> a 0), <code>mensajes</code>
+    (insert de la fila saliente con upsert por <code>canal,msg_id_canal</code>) y
+    <code>adjuntos</code> (insert del adjunto saliente).
+</div>
+
+<h3>Qué avisa a Telegram, y cuándo</h3>
+<div class="envoltorio"><table>
+  <tr><th>Nodo</th><th>Cuándo salta</th></tr>
+  <tr><td><code>Avisar incidencia por Telegram</code></td><td>Cuando el envío a WhatsApp ha fallado. Es el aviso de que un cliente NO ha recibido su mensaje.</td></tr><tr><td><code>Avisar número por defecto</code></td><td>Cuando no se pudo resolver el canal y el mensaje salió por el número de wa.env.</td></tr><tr><td><code>Avisar fallo de confirmación</code></td><td>Cuando falla el marcar como leído en Meta.</td></tr>
+</table></div>
+
+<h3>Qué pasa si falla</h3>
+<div class="tarjeta">
+  
+    <p><strong>Se para</strong> si fallan «Asegurar conversación», «Preparar fila
+    saliente» o «Registrar salida». Ojo con este último: el mensaje <em>ya se ha
+    enviado</em> al cliente, así que si el registro muere, el cliente lo tiene y
+    Supabase no — y el inbox no lo enseña.</p>
+    <p><strong>Sigue</strong> en 7 nodos.</p>
+    <p><strong>Avisa</strong> en tres sitios, y es el workflow que mejor lo hace:
+    el fallo de envío se comprueba explícitamente en vez de darse por bueno.</p>
+  <p class="id">Contado del JSON: 7 nodos siguen en silencio ·
+  1 tienen rama de error · 1 reintentan ·
+  3 nodos externos sin marca (paran la ejecución).</p>
+</div>
+<h2 id="w2">7. LumaBot Inbox — Webhook de envío — PROD</h2>
+<div class="tarjeta wf">
+  <div class="id">YGqvrxFadgtdS7Lo · 16 nodos · POST /inbox-enviar</div>
+  <h4>Para qué sirve</h4>
+La puerta por la que el inbox manda mensajes y bloquea clientes. El frontend usa
+la clave anónima y no tiene permiso de INSERT en <code>mensajes</code>: escribe
+llamando aquí.
+  <h4>Qué lo dispara</h4><code>POST /inbox-enviar</code>, llamado por el inbox desde el
+    navegador. No lo llama ningún workflow de n8n.
+</div>
+
+<h3>Bloques, en orden</h3>
+<pre class="mermaid">graph TD
+  B0["Autenticación"]
+  B1["Validar y enviar"]
+  B2["Bloquear en WhatsApp"]
+  B0 --> B1
+  B1 --> B2</pre>
+<div class="tarjeta">
+  <strong>Autenticación</strong>
+  <div class="id" style="margin:4px 0 8px">Petición del inbox · Sacar el token · Verificar sesión en Supabase · Comprobar sesión · ¿Sesión válida? · Responder 401</div>
+  El token del usuario se valida contra <code>/auth/v1/user</code> de
+        Supabase, que es la autoridad. Comprobado empíricamente: token inventado,
+        ausente o con el <code>exp</code> manipulado dan 403.
+        <strong>Falla cerrado</strong>: si Supabase no responde 200, la sesión no
+        vale. Eso está bien hecho.</div><div class="tarjeta">
+  <strong>Validar y enviar</strong>
+  <div class="id" style="margin:4px 0 8px">Validar y traducir · ¿Petición correcta? · Responder 400 · Punto único de salida · Responder 200</div>
+  Traduce la petición del inbox al contrato del subflujo de salida y
+        lo llama. No habla con WhatsApp por su cuenta.</div><div class="tarjeta">
+  <strong>Bloquear en WhatsApp</strong>
+  <div class="id" style="margin:4px 0 8px">¿Es bloqueo? · Bloquear en Meta · Leer respuesta de bloqueo · Guardar bloqueo · Responder al bloqueo</div>
+  Bloquea o desbloquea contra Graph y traduce los errores de Meta a
+        castellano: el 131047 («solo se puede bloquear a quien te haya escrito en
+        las últimas 24 h») es el que el equipo verá de verdad. El PATCH solo toca
+        <code>bloqueada</code> si Meta ha dicho que sí — la base de datos no puede
+        decir «bloqueada» de alguien que sigue pudiendo escribir.</div>
+
+<h3>Qué escribe, y dónde</h3>
+<div class="tarjeta">
+  <p><strong>Tablas detectadas en el JSON:</strong> <code>auth</code> <span class="id">(GET)</span> · <code>conversaciones</code> <span class="id">(PATCH)</span></p>
+  
+  Lee <code>/auth/v1/user</code> para validar la sesión y hace PATCH
+    sobre <code>conversaciones</code> para marcar el bloqueo. Los mensajes no los
+    escribe él: los escribe el subflujo de salida.
+</div>
+
+<h3>Qué avisa a Telegram, y cuándo</h3>
+<div class="tarjeta">No manda ningún aviso a Telegram.</div>
+
+<h3>Qué pasa si falla</h3>
+<div class="tarjeta">
+  
+    <p><strong>Se para</strong> en los nodos de validación sin marca de error.</p>
+    <p><strong>Sigue</strong> en 3 nodos, pero el de la sesión falla cerrado, que es
+    lo correcto.</p>
+    <p><strong>No avisa a Telegram por ningún sitio.</strong> Todo lo que sale mal
+    se le devuelve al inbox por HTTP, así que quien lo ve es la persona que estaba
+    delante. Si nadie estaba mirando, no queda rastro fuera de la ejecución.</p>
+  <p class="id">Contado del JSON: 3 nodos siguen en silencio ·
+  0 tienen rama de error · 0 reintentan ·
+  1 nodos externos sin marca (paran la ejecución).</p>
+</div>
+<h2 id="w3">8. LumaBot — Purchase al CAPI (validación) — PROD</h2>
+<div class="tarjeta wf">
+  <div class="id">qXCipdF2Blm0v6HI · 22 nodos · POST /capi-purchase</div>
+  <h4>Para qué sirve</h4>
+Reporta a Meta el evento Purchase cuando una venta se valida en el inbox, para
+que el algoritmo de los anuncios sepa qué anuncio acabó en dinero. Se reporta
+con la fecha en que se validó la venta, no la del pedido.
+  <h4>Qué lo dispara</h4><code>POST /capi-purchase</code>, llamado por el inbox al validar
+    una venta.
+</div>
+
+<h3>Bloques, en orden</h3>
+<pre class="mermaid">graph TD
+  B0["Autenticación"]
+  B1["El cerrojo"]
+  B2["Construir y enviar el evento"]
+  B3["Cerrar el cerrojo"]
+  B0 --> B1
+  B1 --> B2
+  B2 --> B3</pre>
+<div class="tarjeta">
+  <strong>Autenticación</strong>
+  <div class="id" style="margin:4px 0 8px">Petición del inbox · Sacar el token · Verificar sesión en Supabase · Comprobar sesión · ¿Sesión válida? · Responder 401</div>
+  Idéntico al del webhook de envío, y también falla cerrado.</div><div class="tarjeta">
+  <strong>El cerrojo</strong>
+  <div class="id" style="margin:4px 0 8px">Tomar el cerrojo · ¿Tomé algo? · ¿Hay líneas? · Responder: nada que reportar</div>
+  <code>capi_tomar</code> reserva las líneas a reportar de forma
+        atómica. Sin cerrojo, dos validaciones simultáneas mandarían el mismo
+        Purchase dos veces y la conversión se contaría doble.</div><div class="tarjeta">
+  <strong>Construir y enviar el evento</strong>
+  <div class="id" style="margin:4px 0 8px">Leer conversación y canal · Construir evento · ¿Se puede enviar? · Enviar a Meta CAPI · ¿Meta lo aceptó? · ¿Fue bien?</div>
+  Necesita el <code>ctwa_clid</code> que el receptor guardó del primer
+        mensaje. El SHA-256 que pide el CAPI está escrito en JavaScript puro porque
+        n8n bloquea el módulo <code>crypto</code> en su sandbox.</div><div class="tarjeta">
+  <strong>Cerrar el cerrojo</strong>
+  <div class="id" style="margin:4px 0 8px">Cerrar con éxito · Motivo del fallo · Cerrar con fallo · Avisar a Incidencias · Responder: enviado · Responder: no enviado</div>
+  <code>capi_cerrar</code> con <code>p_ok: true</code> marca las líneas
+        como reportadas; con <code>p_ok: false</code> suelta el cerrojo para que se
+        reintente. <strong>Los dos cierres se tragan su error</strong>, y cada uno
+        falla hacia un lado distinto: ver la tabla de riesgo.</div>
+
+<h3>Qué escribe, y dónde</h3>
+<div class="tarjeta">
+  <p><strong>Tablas detectadas en el JSON:</strong> <code>auth</code> <span class="id">(GET)</span> · <code>rpc/capi_tomar</code> <span class="id">(POST)</span> · <code>conversaciones</code> <span class="id">(GET)</span> · <code>rpc/capi_cerrar</code> <span class="id">(POST)</span></p>
+  
+  RPC <code>capi_tomar</code> y <code>capi_cerrar</code>, y lectura de
+    <code>conversaciones</code> para sacar el <code>ctwa_clid</code> y el canal.
+</div>
+
+<h3>Qué avisa a Telegram, y cuándo</h3>
+<div class="envoltorio"><table>
+  <tr><th>Nodo</th><th>Cuándo salta</th></tr>
+  <tr><td><code>Avisar a Incidencias</code></td><td>Cuando un Purchase no se ha podido reportar a Meta. Va al chat de Incidencias, no al de Pedidos.</td></tr>
+</table></div>
+
+<h3>Qué pasa si falla</h3>
+<div class="tarjeta">
+  
+    <p><strong>Se para</strong> en la toma del cerrojo y en el envío a Meta si no
+    llevan marca.</p>
+    <p><strong>Sigue</strong> en 4 nodos.</p>
+    <p><strong>Avisa</strong> a Incidencias cuando no se pudo reportar — pero ese
+    aviso también se traga su propio fallo.</p>
+  <p class="id">Contado del JSON: 4 nodos siguen en silencio ·
+  0 tienen rama de error · 0 reintentan ·
+  3 nodos externos sin marca (paran la ejecución).</p>
+</div>
+
+<h2 id="discrepancias">9. Discrepancias</h2>
+<p>Sitios donde el código no cuadra con lo que se supone que hace. Salen de leer
+los nodos, no de la documentación.</p>
+<div class="tarjeta" style="border-left:3px solid var(--naranja)">
+  <span class="pill alto">Alto</span>
+  <strong style="margin-left:8px">La identidad todavía depende del canal en tres tablas</strong>
+  <div class="id" style="margin:6px 0">Leer fichas enviadas · Marcar ficha directa · Guardar pedido</div>
+  La regla 3 dice que la identidad es <code>cliente_id</code>, nunca el
+    teléfono ni el LID. Pero <code>pedidos</code> se inserta con una columna
+    <code>telefono</code>, y <code>fichas_enviadas</code> usa una
+    <code>clave</code> que el propio SQL admite en un comentario:
+    <em>«OJO: fichas_enviadas.clave todavia usa LID/telefono del mundo viejo»</em>.
+    Mientras siga así, un cliente que cambie de número es dos clientes para las
+    fichas y para los pedidos.</div><div class="tarjeta" style="border-left:3px solid var(--naranja)">
+  <span class="pill alto">Alto</span>
+  <strong style="margin-left:8px">El sistema escribe en dos bases de datos, no en una</strong>
+  <div class="id" style="margin:6px 0">Guardar en buffer · Vaciar buffer · Guardar pedido · Postgres Chat Memory</div>
+  La migración a Supabase está a medias y no se ve en ningún sitio.
+    Conversaciones, mensajes, adjuntos y canales viven en Supabase Cloud; pero
+    <code>buffer_mensajes</code>, <code>pedidos</code>, <code>fichas_enviadas</code>
+    y <code>n8n_chat_histories</code> siguen en el Postgres del contenedor
+    <code>bot-postgres-1</code>, con nodos <code>postgres</code> y SQL a mano.
+    Son dos backups distintos, dos modos de fallo distintos y ninguna transacción
+    que los cruce: un pedido puede guardarse en Postgres y su marca de producto
+    fallar en Supabase, y quedan descuadrados sin que nadie lo note.</div><div class="tarjeta" style="border-left:3px solid var(--rojo)">
+  <span class="pill critico">CRÍTICO</span>
+  <strong style="margin-left:8px">La pausa manual falla abierta en cinco sitios</strong>
+  <div class="id" style="margin:6px 0">Interpretar estado · Check ficha (adaptar) · ¿Sigue activo? (adaptar) · Check oferta (adaptar) · Check final (adaptar)</div>
+  Pausar el bot es la única herramienta que tiene un humano para
+    recuperar una conversación que María está estropeando. Pero las cinco
+    comprobaciones de la pausa asumen «no pausado» si no pueden leer Supabase.
+    El comentario del código lo dice sin rodeos: <em>«Si no se puede leer,
+    asumimos NO pausado y seguimos»</em>. Una función de seguridad tiene que
+    fallar cerrada: si no se sabe si el cliente está pausado, lo prudente es
+    callarse, no hablar. Los nodos de sesión del inbox y del CAPI sí fallan
+    cerrados — el criterio no es el mismo en todo el sistema.</div><div class="tarjeta" style="border-left:3px solid var(--amarillo)">
+  <span class="pill medio">Medio</span>
+  <strong style="margin-left:8px">El modelo de publicación de n8n no está en uso</strong>
+  
+  El CLAUDE.md describe un flujo de publicar/despublicar con cascada, y
+    esa historia es real. Pero hoy, en esta instancia (n8n 2.34.6),
+    <code>workflow_published_version</code> y
+    <code>workflow_publication_trigger_status</code> están <strong>vacías</strong>:
+    va con el modelo clásico de <code>active</code>. Lo que quita las filas de
+    <code>webhook_entity</code> es desactivar, no despublicar.
+    <br><strong>Lo que no se ha probado:</strong> desactivar un subflujo que tenga
+    un llamador vivo. Al apagar el subflujo antiguo se apagó primero su único
+    llamador activo, así que ese caso no se reprodujo y no se puede afirmar que sea
+    inofensivo. El peligro del <code>PUT</code> sigue en pie por otra razón: un PUT
+    reescribe el workflow entero.</div><div class="tarjeta" style="border-left:3px solid var(--naranja)">
+  <span class="pill alto">Alto</span>
+  <strong style="margin-left:8px">Un aviso que se traga su propio error no es un aviso</strong>
+  <div class="id" style="margin:6px 0">Avisar al dueño · Avisar al dueño - Pedido · Avisar canal desconocido · Avisar incidencia por Telegram · Avisar número por defecto · Avisar a Incidencias</div>
+  Los ocho nodos de Telegram del sistema llevan
+    <code>onError: continueRegularOutput</code>. Eso significa que si Telegram
+    falla —o si la expresión que compone el mensaje se rompe, que ya pasó una vez
+    con <code>{"error":"invalid syntax"}</code>— el aviso desaparece sin dejar
+    rastro y la ejecución sale verde. La red de seguridad tiene el mismo modo de
+    fallo silencioso que aquello de lo que protege.</div><div class="tarjeta" style="border-left:3px solid var(--amarillo)">
+  <span class="pill medio">Medio</span>
+  <strong style="margin-left:8px">«¿Esperando datos?» busca tres frases literales</strong>
+  <div class="id" style="margin:6px 0">¿Esperando datos?</div>
+  Para saber si María ya pidió la dirección, se buscan tres cadenas
+    literales (<code>'%para preparar el env%'</code> y dos más) en el último
+    mensaje del historial. Si el modelo lo dice de otra forma, falla en silencio.
+    Está asumido y es aceptable porque es una decisión de un turno que se
+    autocorrige al mensaje siguiente — pero conviene saber que ahí hay una regex
+    contra texto libre de un modelo.</div><div class="tarjeta" style="border-left:3px solid var(--amarillo)">
+  <span class="pill bajo">Bajo</span>
+  <strong style="margin-left:8px">El indicador de «escribiendo…» se manda antes de saber si habrá respuesta</strong>
+  <div class="id" style="margin:6px 0">Preparar: leído + escribiendo · MARCAR leído + escribiendo · Añadir contexto</div>
+  El check azul y el «escribiendo…» salen en «Añadir contexto», mucho
+    antes de saber si esto va a acabar en pedido. Cuando acaba en pedido, el bot
+    se calla a propósito: el cliente ve el doble check y «escribiendo…», y luego
+    nada. El indicador caduca solo a los 25 segundos. Moverlo detrás de
+    «¿Pedido completo?» arreglaría eso pero retrasaría el check azul en todos los
+    mensajes normales.</div>
+
+<h2 id="apendice">10. Apéndice: los 47 workflows inactivos</h2>
+<p>No se ha borrado ninguno. Están desactivados: sin webhook registrado, sin
+ejecuciones y sin que ningún workflow vivo los llame.</p>
+<div class="envoltorio"><table><tr><th>ID</th><th>Nombre</th><th>Estado</th></tr>
+     <tr><td class="id">uy6SosfWGv3keEAG</td><td>Glowbot WhatsApp - EXCLAMACION</td>
+       <td>archivado</td></tr><tr><td class="id">njmnX3bSijQt7kMv</td><td>Glowbot WhatsApp - GPT-5.6 SOL</td>
+       <td>archivado</td></tr><tr><td class="id">VTRoc2crmTg84xHE</td><td>Glowbot WhatsApp - María FINAL</td>
+       <td>archivado</td></tr><tr><td class="id">rnfq9LEGW2pYVTJk</td><td>Glowbot WhatsApp - María FINAL</td>
+       <td>archivado</td></tr><tr><td class="id">FTxz2UkQKeBXejWc</td><td>Glowbot WhatsApp - María FINAL</td>
+       <td>archivado</td></tr><tr><td class="id">KyZFTfcJ0EhFSWWe</td><td>Glowbot WhatsApp - María FINAL</td>
+       <td>archivado</td></tr><tr><td class="id">dFqDC4IDza2WEDvE</td><td>Glowbot WhatsApp - María FINAL</td>
+       <td>archivado</td></tr><tr><td class="id">EI7Apiq3ZI9M0QAI</td><td>Glowbot WhatsApp - María FINAL</td>
+       <td>archivado</td></tr><tr><td class="id">SLQesqbOvOwEiMvY</td><td>Glowbot WhatsApp - María FINAL</td>
+       <td>archivado</td></tr><tr><td class="id">9C6ocU52vexfKKRb</td><td>Glowbot WhatsApp - María FINAL</td>
+       <td>archivado</td></tr><tr><td class="id">4Dkl14NNp2ZBJ1xp</td><td>Glowbot WhatsApp - María FINAL_v6</td>
+       <td>archivado</td></tr><tr><td class="id">fy3BkNcyt7EjCiyB</td><td>Glowbot WhatsApp - María FINAL22</td>
+       <td>archivado</td></tr><tr><td class="id">2uOhiYxStfcekHZy</td><td>Glowbot WhatsApp - María FINAL3</td>
+       <td>archivado</td></tr><tr><td class="id">3ca08bDxir6RTc9O</td><td>Glowbot WhatsApp - María FUNCIONA 100%</td>
+       <td>archivado</td></tr><tr><td class="id">XxBUgNJ17Sznlq3t</td><td>Glowbot WhatsApp - PROD</td>
+       <td>archivado</td></tr><tr><td class="id">kKg7ghVZKHYzJAC3</td><td>Glowbot WhatsApp - PROD 2</td>
+       <td>archivado</td></tr><tr><td class="id">ThmICuZM8bnT8frZ</td><td>Glowbot WhatsApp - PROD 6</td>
+       <td>archivado</td></tr><tr><td class="id">YkfztSOhqK2oet8l</td><td>Glowbot WhatsApp - PROD 7</td>
+       <td>archivado</td></tr><tr><td class="id">l9IvBLJQPuFaeW07</td><td>Glowbot WhatsApp - PROD_1</td>
+       <td>archivado</td></tr><tr><td class="id">u8ZSXT4N7FaOaEzU</td><td>Glowbot WhatsApp - prod_2</td>
+       <td>archivado</td></tr><tr><td class="id">foNzr8ZOeOKvtpui</td><td>Glowbot WhatsApp - prod4</td>
+       <td>archivado</td></tr><tr><td class="id">5TWyTmNmfiDmvdNg</td><td>Glowbot WhatsApp - PUNTO</td>
+       <td>archivado</td></tr><tr><td class="id">3bsRGsjwmYPlA2zq</td><td>Glowbot WhatsApp - Version 4</td>
+       <td>archivado</td></tr><tr><td class="id">RIzdhrSUB4Yu3dcB</td><td>Glowbot WhatsApp -GION</td>
+       <td>archivado</td></tr><tr><td class="id">7z98we72bjUBJ0l0</td><td>Glowbot WhatsApp -GION PROD</td>
+       <td>archivado</td></tr><tr><td class="id">k8m1XiT2sbjJop9b</td><td>Glowbot WhatsApp -PROD 2</td>
+       <td>archivado</td></tr><tr><td class="id">gxklKbksmqd5s3Qf</td><td>Glowbot WhatsApp -PROD 3</td>
+       <td>archivado</td></tr><tr><td class="id">dgX2Npbc7bJ5YXUL</td><td>Glowbot WhatsApp -PROD 5</td>
+       <td>archivado</td></tr><tr><td class="id">cwZV3eSC07ouAyLx</td><td>Glowbot WhatsApp -PUNTO</td>
+       <td>archivado</td></tr><tr><td class="id">BWrPIfxMC6Nkpf03</td><td>LumaBot  IA v1</td>
+       <td>archivado</td></tr><tr><td class="id">Cf293niAtN5waPjz</td><td>LumaBot  IA v2-error meta</td>
+       <td>archivado</td></tr><tr><td class="id">TlNYwTxmZP9K9tKE</td><td>LumaBot  IA v3</td>
+       <td>archivado</td></tr><tr><td class="id">fUnaKZ51BWB2qJ7U</td><td>LumaBot — Salida WhatsApp (punto único)</td>
+       <td>archivado</td></tr><tr><td class="id">pSzeGNsQXDTMFGs3</td><td>LumaBot Cloud API — Fase 1 (recepción)</td>
+       <td>archivado</td></tr><tr><td class="id">4uK8Dpsi8JA9GGaA</td><td>LumaBot Cloud API — Fase 3 tanda 1 (persistencia)</td>
+       <td>archivado</td></tr><tr><td class="id">BtqTW7ZiLKIDD1nv</td><td>LumaBot Cloud API — Fase 3 tanda 3b (histórico · wa-cloud-3b · sin tráfico de Meta)</td>
+       <td>archivado</td></tr><tr><td class="id">QHZLqwmQ4yq39CrU</td><td>LumaBot Cloud API — Fase 5 (audio: media + Whisper + reglas)</td>
+       <td>archivado</td></tr><tr><td class="id">XqNuSgdzm3IZArwI</td><td>My workflow</td>
+       <td>archivado</td></tr><tr><td class="id">Ox8TYw3w8h51dIVJ</td><td>TEMP — lanzador de pruebas tanda 2</td>
+       <td>archivado</td></tr><tr><td class="id">qyc3AfDNyCvclT8z</td><td>Whatssap AI AGENT</td>
+       <td>archivado</td></tr><tr><td class="id">DntZL838xRIoQ3Yw</td><td>Whatssap AI AGENT</td>
+       <td>archivado</td></tr><tr><td class="id">CtJ7g4pgrxa89rex</td><td>Whatssap AI AGENT 3</td>
+       <td>archivado</td></tr><tr><td class="id">xNt33V58BkDn8wLJ</td><td>Whatssap AI AGENT COMPLEX</td>
+       <td>archivado</td></tr><tr><td class="id">WK42uugLRHqSxnGc</td><td>Whatssap AI AGENT ORIGINAL</td>
+       <td>archivado</td></tr><tr><td class="id">2PPYrPILbSN9fuVK</td><td>Whatssap AI AGENT2</td>
+       <td>archivado</td></tr><tr><td class="id">HGOAiqC5pqNZEJvE</td><td>Whatssap AI AGENT2</td>
+       <td>archivado</td></tr><tr><td class="id">o6zoUEnH43oszA3m</td><td>Whatssap AI AGENT3</td>
+       <td>archivado</td></tr></table></div>
+
+<footer>
+  Generado por <code>docs/manual/generar.mjs</code> desde
+  <code>docs/manual/instantanea.json</code>.<br>
+  Para regenerarlo: <code>N8N_API_KEY=… node docs/manual/generar.mjs --fetch</code>.
+  Para comprobar si se ha quedado viejo sin escribir nada:
+  <code>node docs/manual/generar.mjs --check</code>.
+</footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mermaid/10.9.1/mermaid.min.js"></script>
+<script>
+  (function(){
+    var oscuro = document.documentElement.dataset.theme === 'dark' ||
+      (!document.documentElement.dataset.theme &&
+       window.matchMedia('(prefers-color-scheme: dark)').matches);
+    if (window.mermaid) mermaid.initialize({
+      startOnLoad: true, securityLevel: 'loose',
+      theme: oscuro ? 'dark' : 'default'
+    });
+  })();
+</script>
