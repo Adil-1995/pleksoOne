@@ -3,6 +3,7 @@ import { Send, Paperclip, X, Loader2, AlertTriangle, Ban } from 'lucide-react'
 import { enviar, subirMedia, subirMiniatura, ponerBot } from '@/lib/envio'
 import { revisar, comprimirImagen, miniaturaDeVideo, tipoDeFichero } from '@/lib/media'
 import { capacidadesDe, estadoVentana } from '@/lib/canales'
+import { pesoLegible } from '@/lib/formato'
 import { useUI } from '@/store/ui'
 import { useQueryClient } from '@tanstack/react-query'
 import { claves } from '@/hooks/datos'
@@ -330,7 +331,13 @@ export function Redactor({ conv, canal }: { conv: Conversacion; canal: Canal | u
               </div>}
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm">{adjunto.name}</div>
-            <div className="text-xs text-texto2">{(adjunto.size / 1048576).toFixed(2)} MB</div>
+            {/* pesoLegible y no megas a pelo: en megas con dos decimales,
+                cualquier cosa por debajo de 5 KB —una captura pequeña, un
+                PNG de un logo— salía como «0.00 MB», que parece un fichero
+                vacío o un fallo de la subida. Es la misma función que usa la
+                burbuja del hilo, así que el peso se lee igual antes y
+                después de enviar. */}
+            <div className="text-xs text-texto2">{pesoLegible(adjunto.size)}</div>
             {progreso !== null && (
               <div className="mt-1 h-1 overflow-hidden rounded bg-panel2">
                 <div className="h-full bg-acento transition-all" style={{ width: `${progreso}%` }} />
