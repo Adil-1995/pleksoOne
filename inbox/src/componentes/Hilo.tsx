@@ -5,14 +5,19 @@ import { useUI } from '@/store/ui'
 import { marcarLeida } from '@/lib/envio'
 import { etiquetaDia, mismoDia } from '@/lib/formato'
 import { Burbuja } from './Burbuja'
+import { BurbujaAnuncio } from './BurbujaAnuncio'
 import { EsqueletoHilo, Vacio } from './Esqueletos'
-import type { Conversacion, MensajeEnLista } from '@/tipos'
+import {
+  anuncioDe, esOptimista,
+  type AnuncioOrigen, type Conversacion, type MensajeEnLista,
+} from '@/tipos'
 
 // Referencia estable: si esto se creara en cada render, volveriamos al bucle.
 const SIN_OPTIMISTAS: MensajeEnLista[] = []
 
 type Elemento =
   | { clase: 'dia'; clave: string; iso: string }
+  | { clase: 'anuncio'; clave: string; a: AnuncioOrigen; iso: string }
   | { clase: 'msg'; clave: string; m: MensajeEnLista }
 
 export function Hilo({ conv }: { conv: Conversacion }) {
@@ -37,6 +42,13 @@ export function Hilo({ conv }: { conv: Conversacion }) {
         out.push({ clase: 'dia', clave: 'd' + m.creado, iso: m.creado })
         anterior = m.creado
       }
+      // El anuncio va JUSTO ANTES del mensaje que lo trae, que es el orden en
+      // que ocurrió: Meta enseña el mensaje automático y luego el cliente
+      // escribe. Se pinta uno por cada `referral`, no solo el primero: si el
+      // cliente vuelve por un anuncio distinto semanas después, ese segundo
+      // anuncio explica el cambio de tema y esconderlo sería perder el porqué.
+      const anuncio = esOptimista(m) ? null : anuncioDe(m)
+      if (anuncio) out.push({ clase: 'anuncio', clave: 'a' + m.id, a: anuncio, iso: m.creado })
       out.push({ clase: 'msg', clave: 'm' + m.id, m })
     }
     return out
@@ -45,7 +57,10 @@ export function Hilo({ conv }: { conv: Conversacion }) {
   const virtual = useVirtualizer({
     count: elementos.length,
     getScrollElement: () => contenedor.current,
-    estimateSize: (i) => (elementos[i]?.clase === 'dia' ? 44 : 76),
+    estimateSize: (i) => {
+      const c = elementos[i]?.clase
+      return c === 'dia' ? 44 : c === 'anuncio' ? 180 : 76
+    },
     overscan: 10,
     // Las burbujas miden lo que miden: sin esto, las imágenes descuadran todo.
     measureElement: (el) => el.getBoundingClientRect().height,
@@ -113,6 +128,8 @@ export function Hilo({ conv }: { conv: Conversacion }) {
                     {etiquetaDia(el.iso)}
                   </span>
                 </div>
+              ) : el.clase === 'anuncio' ? (
+                <div className="py-0.5"><BurbujaAnuncio a={el.a} creado={el.iso} /></div>
               ) : (
                 <div className="py-0.5"><Burbuja m={el.m} /></div>
               )}

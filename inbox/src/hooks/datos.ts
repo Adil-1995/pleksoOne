@@ -11,6 +11,7 @@ import {
 } from '@/lib/conversaciones'
 import {
   leerRespuestas, crearRespuesta, editarRespuesta, borrarRespuesta,
+  type ImagenRespuesta,
 } from '@/lib/respuestas'
 import type {
   Canal, Conversacion, Mensaje, Adjunto, Etiqueta, EstadoProducto, MarcaRevision,
@@ -581,8 +582,9 @@ export function useGestionRespuestas() {
   const refrescar = () => { qc.invalidateQueries({ queryKey: claves.respuestas }) }
   return {
     crear: useMutation({
-      mutationFn: ({ atajo, texto }: { atajo: string; texto: string }) =>
-        crearRespuesta(atajo, texto),
+      mutationFn: ({ atajo, texto, imagen }:
+        { atajo: string; texto: string; imagen?: ImagenRespuesta | null }) =>
+        crearRespuesta(atajo, texto, imagen),
       onSuccess: refrescar,
     }),
     editar: useMutation({
@@ -590,6 +592,13 @@ export function useGestionRespuestas() {
         editarRespuesta(id, cambios),
       onSuccess: refrescar,
     }),
-    borrar: useMutation({ mutationFn: borrarRespuesta, onSuccess: refrescar }),
+    // El borrado se lleva por delante también el fichero del Storage. Sin
+    // esto, cada respuesta con imagen que se borrase dejaría el fichero ahí
+    // para siempre, sin fila que lo nombre y sin forma de saber cuál era.
+    borrar: useMutation({
+      mutationFn: ({ id, imagenPath }: { id: number; imagenPath?: string | null }) =>
+        borrarRespuesta(id, imagenPath),
+      onSuccess: refrescar,
+    }),
   }
 }

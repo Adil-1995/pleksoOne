@@ -20,8 +20,13 @@ const fuente = readFileSync(join(raiz, 'src/lib/respuestas.ts'), 'utf8')
 // lógica pura (cuándo abre, cómo filtra, cómo se limpia el atajo), que es la
 // que puede romperse en silencio.
 const soloLogica = fuente
-  .replace(/^import[\s\S]*?from '.\/supabase'$/m, '')
-  .replace(/^import type[\s\S]*?from '@\/tipos'$/m, '')
+  // TODOS los imports, no solo el de Supabase. Antes esto quitaba a mano dos
+  // líneas concretas por su ruta, así que el día que el fichero importó algo
+  // más (`nombreSeguro` de ./media) la prueba se cayó sola, en una prueba que
+  // no tenía nada que ver con lo que se había tocado. Se ejecuta desde una
+  // data: URL, donde ninguna ruta relativa resuelve: aquí no puede quedar ni
+  // un import, sea cual sea.
+  .replace(/^import[^\n]*?from\s+'[^']+'\s*$/gm, '')
   .replace(/export async function [\s\S]*?\n}\n/g, '')
 
 const { code } = transformSync(soloLogica, { loader: 'ts', format: 'esm' })

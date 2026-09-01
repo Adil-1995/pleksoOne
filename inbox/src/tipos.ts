@@ -308,8 +308,82 @@ export interface RespuestaRapida {
   atajo: string
   texto: string
   orden: number
+  /**
+   * Ruta dentro del bucket `media`, NO la URL (13-respuestas-con-imagen.sql).
+   * `null` o ausente = respuesta solo de texto.
+   *
+   * Opcionales de verdad: las columnas son de un SQL que se ejecuta a mano,
+   * así que hasta que alguien lo pase por el SQL Editor no existen y
+   * PostgREST no las devuelve. El inbox tiene que funcionar igual mientras
+   * tanto, con las respuestas de siempre.
+   */
+  imagen_path?: string | null
+  imagen_nombre?: string | null
+  imagen_tamano?: number | null
   /** Quién la creó. Informativo: no restringe quién puede editarla. */
   creado_por: string | null
   creado: string
   actualizado: string
+}
+
+/**
+ * El anuncio del que vino la conversación.
+ *
+ * QUÉ ES ESTO. Cuando alguien llega desde un anuncio click-to-WhatsApp, Meta
+ * le enseña primero un mensaje automático con el texto del anuncio, y DESPUÉS
+ * el cliente escribe. Ese primer mensaje no pasa por nuestra Cloud API —lo
+ * compone y lo entrega Meta— así que `Registrar salida` nunca lo ve y no hay
+ * fila suya en `mensajes`. En el inbox el hilo empezaba directamente por el
+ * cliente y no había forma de saber de qué producto venía.
+ *
+ * Lo que SÍ tenemos es el objeto `referral`, que Meta cuelga del PRIMER
+ * mensaje del cliente y que `Preparar fila del mensaje` guarda entero en
+ * `mensajes.payload`. Está ahí desde el primer día, para todas las
+ * conversaciones ya existentes: no ha hecho falta ni DDL ni tocar el flujo.
+ * Mismo camino que `ubicacionDe()` — mirar donde el dato ya estaba.
+ *
+ * `unknown` de entrada porque el payload es de un tercero: se comprueba campo
+ * a campo antes de leer nada.
+ */
+export interface AnuncioOrigen {
+  /** Titular del anuncio. */
+  titular: string | null
+  /** El texto del anuncio: esto es el mensaje automático que vio el cliente. */
+  cuerpo: string | null
+  /** Enlace a la publicación o al anuncio. */
+  enlace: string | null
+  /** `source_id` de Meta: el id del anuncio, para cruzarlo con el CAPI. */
+  anuncioId: string | null
+  /** Imagen o miniatura del creativo. URL de Meta: caduca, puede no cargar. */
+  miniatura: string | null
+}
+
+/**
+ * Saca el anuncio de origen de un mensaje, o `null` si no venía de uno.
+ *
+ * Devuelve null si no hay NADA que pintar (ni titular, ni cuerpo, ni enlace).
+ * Una burbuja de anuncio vacía sería justo el problema que esto viene a
+ * arreglar —un hueco sin explicación— con un marco alrededor.
+ */
+export function anuncioDe(m: Pick<Mensaje, 'payload'>): AnuncioOrigen | null {
+  const p = m.payload as { referral?: Record<string, unknown> } | null | undefined
+  const r = p?.referral
+  if (!r || typeof r !== 'object') return null
+
+  const texto = (v: unknown): string | null => {
+    const s = typeof v === 'string' ? v.trim() : ''
+    return s === '' ? null : s
+  }
+
+  const a: AnuncioOrigen = {
+    titular:   texto(r.headline),
+    cuerpo:    texto(r.body),
+    enlace:    texto(r.source_url),
+    anuncioId: texto(r.source_id),
+    // thumbnail_url primero: en un anuncio de vídeo, image_url no viene.
+    miniatura: texto(r.thumbnail_url) ?? texto(r.image_url),
+  }
+
+  if (!a.titular && !a.cuerpo && !a.enlace) return null
+  return a
 }

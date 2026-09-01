@@ -1,4 +1,4 @@
-import { useRef, useState, type ChangeEvent, type KeyboardEvent } from 'react'
+import { useRef, useState, type ChangeEvent, type ClipboardEvent, type KeyboardEvent } from 'react'
 import { Send, Paperclip, X, Loader2, AlertTriangle, Ban } from 'lucide-react'
 import { enviar, subirMedia, subirMiniatura, ponerBot } from '@/lib/envio'
 import { revisar, comprimirImagen, miniaturaDeVideo, tipoDeFichero } from '@/lib/media'
@@ -9,6 +9,9 @@ import { claves } from '@/hooks/datos'
 import {
   useComandos, ListaComandos, teclasComandos, aplicarRespuesta,
 } from './ComandosRespuestas'
+import { SelectorEmojis } from './SelectorEmojis'
+import { insertarEmoji } from '@/lib/emojis'
+import { ficheroDeRespuesta } from '@/lib/respuestas'
 import type { Conversacion, Canal, MensajeOptimista, RespuestaRapida } from '@/tipos'
 
 export function Redactor({ conv, canal }: { conv: Conversacion; canal: Canal | undefined }) {
@@ -23,6 +26,10 @@ export function Redactor({ conv, canal }: { conv: Conversacion; canal: Canal | u
   const [urlLocal, setUrlLocal] = useState<string | null>(null)
   const [progreso, setProgreso] = useState<number | null>(null)
   const [aviso, setAviso] = useState<string | null>(null)
+  // La imagen de una respuesta rápida hay que bajarla del Storage. Suele ser
+  // instantáneo, pero desde el móvil no siempre: sin este aviso, eliges
+  // «/ficha», ves solo el texto y crees que la respuesta no tenía foto.
+  const [cargandoImagen, setCargandoImagen] = useState(false)
   const ficheroRef = useRef<HTMLInputElement>(null)
   const campoRef = useRef<HTMLTextAreaElement>(null)
   const qc = useQueryClient()
@@ -36,6 +43,7 @@ export function Redactor({ conv, canal }: { conv: Conversacion; canal: Canal | u
   function elegirRespuesta(r: RespuestaRapida) {
     // Se INSERTA, no se envía. Una plantilla casi siempre necesita un retoque,
     // y mandarla directa convierte un dedo torpe en un mensaje a un cliente.
+    // Con imagen vale doble: lo que se manda es una foto a un cliente real.
     const nuevo = aplicarRespuesta(r)
     setTexto(nuevo)
     // El cursor al final y el foco de vuelta al campo, para poder seguir
@@ -47,6 +55,24 @@ export function Redactor({ conv, canal }: { conv: Conversacion; canal: Canal | u
       el.focus()
       el.setSelectionRange(nuevo.length, nuevo.length)
     })
+
+    // La imagen se baja del Storage y entra en el compositor como un adjunto
+    // más: se previsualiza, se puede quitar con la X y se envía por el mismo
+    // camino que el clip. Va sin bloquear el texto, que ya está puesto.
+    if (!r.imagen_path) return
+    if (!cap.puedeEnviarMedia) {
+      setAviso('Esta respuesta lleva una imagen, pero este canal no admite envío de media. Se ha insertado solo el texto.')
+      return
+    }
+    setCargandoImagen(true)
+    ficheroDeRespuesta(r)
+      .then((f) => { if (f) return aceptarFichero(f) })
+      .catch((e) => setAviso(
+        'No se pudo traer la imagen de /' + r.atajo + ': ' +
+        (e instanceof Error ? e.message : 'error') +
+        '. El texto sí está puesto.',
+      ))
+      .finally(() => setCargandoImagen(false))
   }
 
   const cap = capacidadesDe(canal, conv.canal)
@@ -57,6 +83,18 @@ export function Redactor({ conv, canal }: { conv: Conversacion; canal: Canal | u
     const f = e.target.files?.[0]
     e.target.value = ''
     if (!f) return
+    await aceptarFichero(f)
+  }
+
+  /**
+   * Un fichero pasa a ser el adjunto del compositor.
+   *
+   * Está separado de `elegir` porque ahora hay tres puertas de entrada —el
+   * clip, Ctrl+V y las imágenes de las respuestas rápidas— y las tres tienen
+   * que comprobar el tamaño y comprimir igual. Cuando esto vivía dentro del
+   * onChange del input, pegar una imagen se saltaba el aviso de tamaño.
+   */
+  async function aceptarFichero(f: File) {
     setAviso(null)
 
     // Se avisa ANTES de subir nada: con datos móviles, subir 15 MB para que
@@ -75,6 +113,10 @@ export function Redactor({ conv, canal }: { conv: Conversacion; canal: Canal | u
         return
       }
     }
+    // Se sueltan los blobs del adjunto anterior antes de pisarlos. Pegando
+    // varias imágenes seguidas se iban acumulando en memoria sin que nadie
+    // los liberase, porque solo la X llamaba a revokeObjectURL.
+    liberarBlobs()
     setAdjunto(final)
     setVista(
       rev.tipo === 'image' ? URL.createObjectURL(final)
@@ -84,9 +126,57 @@ export function Redactor({ conv, canal }: { conv: Conversacion; canal: Canal | u
     setUrlLocal(URL.createObjectURL(final))
   }
 
-  function quitarAdjunto() {
+  /**
+   * Pegar con Ctrl+V. Una captura de pantalla llega en el portapapeles como
+   * fichero sin nombre, y hasta ahora había que guardarla a disco para poder
+   * mandarla por el clip.
+   *
+   * Solo se intercepta si el portapapeles trae DE VERDAD un fichero de
+   * imagen. Copiar texto de un correo puede arrastrar imágenes incrustadas,
+   * pero entonces `types` incluye 'text/plain' y aquí no se toca nada: si
+   * pegas texto tiene que pegarse el texto, sin sorpresas.
+   */
+  async function pegar(e: ClipboardEvent<HTMLTextAreaElement>) {
+    if (!cap.puedeEnviarMedia) return
+    const dt = e.clipboardData
+    if (!dt || dt.types.includes('text/plain')) return
+
+    const fichero = Array.from(dt.files).find((f) => f.type.startsWith('image/'))
+    if (!fichero) return
+
+    e.preventDefault()
+    await aceptarFichero(fichero)
+  }
+
+  /**
+   * Un emoji entra donde está el cursor, no al final.
+   *
+   * La posición se lee del textarea en el momento de insertar. Guardarla en
+   * un estado al abrir el selector no valdría: entre abrir y elegir puedes
+   * mover el cursor con las flechas o el ratón, y el emoji caería donde
+   * estaba antes.
+   */
+  function ponerEmoji(emoji: string) {
+    const el = campoRef.current
+    const desde = el?.selectionStart ?? texto.length
+    const hasta = el?.selectionEnd ?? texto.length
+    const r = insertarEmoji(texto, emoji, desde, hasta)
+    setTexto(r.texto)
+    requestAnimationFrame(() => {
+      const c = campoRef.current
+      if (!c) return
+      c.focus()
+      c.setSelectionRange(r.cursor, r.cursor)
+    })
+  }
+
+  function liberarBlobs() {
     if (vista?.startsWith('blob:')) URL.revokeObjectURL(vista)
     if (urlLocal?.startsWith('blob:')) URL.revokeObjectURL(urlLocal)
+  }
+
+  function quitarAdjunto() {
+    liberarBlobs()
     setAdjunto(null); setVista(null); setUrlLocal(null); setAviso(null)
   }
 
@@ -224,6 +314,13 @@ export function Redactor({ conv, canal }: { conv: Conversacion; canal: Canal | u
         </div>
       )}
 
+      {cargandoImagen && !adjunto && (
+        <div className="flex items-center gap-2 border-b border-borde px-4 py-2 text-xs text-texto2">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          Trayendo la imagen de la respuesta…
+        </div>
+      )}
+
       {adjunto && (
         <div className="flex items-center gap-3 border-b border-borde px-4 py-2">
           {vista
@@ -261,11 +358,14 @@ export function Redactor({ conv, canal }: { conv: Conversacion; canal: Canal | u
           </>
         )}
 
+        <SelectorEmojis onElegir={ponerEmoji} />
+
         <textarea
           ref={campoRef}
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
           onKeyDown={teclas}
+          onPaste={pegar}
           rows={1}
           // La pista del «/» va aquí porque si no, nadie descubre que existe:
           // no hay ningún botón que lo enseñe.

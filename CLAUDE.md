@@ -352,6 +352,43 @@ formatear, así que no llegó ninguno.
   `lower(atajo)`. **El texto se INSERTA en el campo, nunca se envía solo**: una
   plantilla casi siempre necesita un retoque, y mandarla directa convierte un dedo
   torpe en un mensaje a un cliente real.
+- `respuestas_rapidas.imagen_path` (13-respuestas-con-imagen.sql) — una imagen
+  opcional por respuesta. Se guarda la **RUTA** dentro del bucket `media`, no la
+  URL: la URL lleva dentro el dominio del proyecto y no sobreviviría a restaurar
+  un backup en otro. Al elegir la respuesta, la imagen se BAJA y entra en el
+  compositor como un adjunto más —previsualización, aviso de tamaño, compresión,
+  la X para quitarla— en vez de mandarse por un cuarto camino con sus propios
+  fallos. El CHECK `texto_no_vacio` se sustituyó por `contenido_no_vacio`: texto
+  **o** imagen. `texto` sigue siendo NOT NULL, con `''` cuando es solo foto.
+
+### El primer mensaje del anuncio no existe como fila, y no puede existir
+La conversación que llega de un anuncio empieza con un mensaje automático que
+**compone y entrega Meta**. No sale por nuestro `POST /messages`, así que
+`Registrar salida` no lo ve; y no vuelve como `messages[]`, así que el receptor
+tampoco. En `mensajes` no hay ni habrá fila suya. No es un fallo de pintado.
+
+Lo que sí hay es el `referral`, que Meta cuelga del PRIMER mensaje del cliente y
+que `Preparar fila del mensaje` guarda entero en `mensajes.payload`. De ahí sale
+la burbuja del anuncio que pinta el inbox (`anuncioDe()` en `inbox/src/tipos.ts`),
+igual que las coordenadas de una ubicación: mirar donde el dato ya estaba, sin
+DDL y sin tocar el flujo. Funciona hacia atrás con las conversaciones ya
+existentes, que es lo que ninguna otra vía da.
+
+**Si algún día hace falta el mensaje literal**, la vía es suscribir el campo
+`message_echoes` del webhook — pero solo sirve hacia adelante y deja en blanco
+todo lo ya ocurrido, así que no sustituye a esto.
+
+### Stickers: no, y no por pereza
+Comprobado contra la documentación de Meta el 1/9/2026: un sticker tiene que ser
+**`image/webp`** y pesar como mucho **100 KB estático** o **500 KB animado** — un
+orden de magnitud por debajo de los 5 MB de una imagen normal.
+Pero lo que lo bloquea de verdad es el camino de salida: `Validar petición` del
+subflujo tiene la lista blanca `['texto','imagen','documento','audio','video',
+'marcar_leido']` y `Construir mensaje Cloud API` un mapa `TIPO_WA` sin sticker.
+Añadirlo obliga a un `PUT` sobre `CYgKApb26ARGlhVZ`, que es **exactamente** lo
+que despublica el subflujo y deja `/webhook/wa-cloud-multi` en 404 sin un solo
+error en el log. Eso es una tanda para él solo, con su orden de activación y su
+comprobación del challenge; no se cuela en una tanda de frontend.
 - NO borres tablas, columnas ni datos sin preguntarme antes.
 - La `service_role` se salta RLS: solo en n8n y en el servidor. NUNCA en
   ficheros del frontend ni en el repo del inbox.

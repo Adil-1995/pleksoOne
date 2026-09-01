@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
-import { Zap } from 'lucide-react'
+import { Zap, ImageIcon } from 'lucide-react'
 import { useRespuestas } from '@/hooks/datos'
-import { filtrarRespuestas, filtroDe } from '@/lib/respuestas'
+import { filtrarRespuestas, filtroDe, urlImagenRespuesta } from '@/lib/respuestas'
 import type { RespuestaRapida } from '@/tipos'
 
 /**
@@ -106,8 +106,14 @@ export function ListaComandos({
                 <span className="shrink-0 rounded bg-acento/15 px-1.5 py-0.5 font-mono text-xs text-acento">
                   /{r.atajo}
                 </span>
+                {/* La miniatura, porque el atajo no dice qué foto lleva. Sin
+                    ella «/ficha» y «/ficha2» son dos filas idénticas y hay que
+                    elegir una a ciegas para ver cuál era. */}
+                <Miniatura respuesta={r} />
                 <span className="min-w-0 flex-1 truncate text-sm text-texto2">
-                  {r.texto.replace(/\s+/g, ' ')}
+                  {r.texto.trim()
+                    ? r.texto.replace(/\s+/g, ' ')
+                    : <span className="italic">Solo imagen</span>}
                 </span>
               </button>
             </li>
@@ -115,6 +121,40 @@ export function ListaComandos({
         </ul>
       </div>
     </div>
+  )
+}
+
+/**
+ * La miniatura de una respuesta con imagen. No ocupa sitio si no la tiene.
+ *
+ * Si la imagen no carga —la borraron del bucket a mano, se cambió la
+ * ruta— queda el icono en su lugar. Eso sigue diciendo lo importante: que
+ * esta respuesta lleva una foto. Un hueco vacío diría que es solo texto y
+ * la enviarías creyendo que va sin nada.
+ */
+function Miniatura({ respuesta }: { respuesta: RespuestaRapida }) {
+  const [rota, setRota] = useState(false)
+  const url = urlImagenRespuesta(respuesta.imagen_path)
+  if (!url) return null
+
+  if (rota) {
+    return (
+      <span
+        className="grid h-8 w-8 shrink-0 place-items-center rounded bg-panel2 text-texto2"
+        title="Lleva una imagen, pero no se ha podido cargar"
+      >
+        <ImageIcon className="h-4 w-4" />
+      </span>
+    )
+  }
+  return (
+    <img
+      src={url}
+      alt=""
+      loading="lazy"
+      onError={() => setRota(true)}
+      className="h-8 w-8 shrink-0 rounded object-cover"
+    />
   )
 }
 
