@@ -390,6 +390,44 @@ que despublica el subflujo y deja `/webhook/wa-cloud-multi` en 404 sin un solo
 error en el log. Eso es una tanda para él solo, con su orden de activación y su
 comprobación del challenge; no se cuela en una tanda de frontend.
 - NO borres tablas, columnas ni datos sin preguntarme antes.
+
+### Los dos buckets, y cuál es cuál
+| Bucket | Público | Qué guarda |
+|---|---|---|
+| `media-whatsapp` | **no** | Todo lo ENTRANTE: fotos y audios de los clientes. Se lee con URL firmada (`useUrlFirmada`), y hace falta `wa_media_lee_equipo` — sin ella Supabase responde *«Object not found»* aunque el fichero exista |
+| `media` | **sí** | Solo lo SALIENTE (`salientes/{cliente_id}/…`) y las imágenes de las respuestas rápidas (`respuestas/…`) |
+
+`media` es público **porque no queda otra hoy**: `Construir mensaje Cloud API`
+manda `{link: url}` y son los **servidores de Meta** los que descargan esa URL,
+sin credenciales. Un bucket privado les daría un 403 y el envío fallaría.
+La descarga pública **no pasa por RLS**: con cero cabeceras devuelve 200.
+
+⚠️ El **listado** de `media` estuvo abierto a `anon` hasta el 1/9/2026, y como
+la ruta es `salientes/{cliente_id}/…`, cualquiera con la anon key —que va en el
+bundle— podía cosechar los teléfonos de 26 clientes. Lo cierra
+`14-cerrar-listado-media.sql`. **Nadie lista ese bucket** ni en el inbox ni en
+n8n: comprobado con `grep -rn "\.list("`. Si algún día hace falta listar, que
+sea con la `service_role` desde el servidor, nunca desde el navegador.
+
+### 📌 PENDIENTE, y en su propia tanda: quitar el `link` del envío
+Para poder hacer `media` privado hay que dejar de depender de una URL que Meta
+pueda bajar. La vía buena **no es firmar la URL**: es subir el fichero con
+`POST /{PHONE_ID}/media` y mandar `{"id": "<media_id>"}` en vez de
+`{"link": "<url>"}`. Además del bucket privado, eso elimina de golpe toda la
+clase de fallos «Meta no pudo descargar la URL», que hoy solo se ven como un
+envío fallido sin explicación.
+
+**Va sola, sin nada más encima**, porque toca `CYgKApb26ARGlhVZ` con un `PUT` y
+eso lo despublica en cascada (orden obligatorio de activación arriba, en las
+lecciones de n8n). Y arrastra dos cosas que hay que hacer en la MISMA tanda o
+se rompen en silencio:
+- `adjuntos.miniatura` guarda la **URL pública entera** como texto y `Burbuja`
+  la usa directa como `poster`, sin pasar por `useUrlFirmada`. Con el bucket
+  privado esas filas quedan en 404 para siempre y los pósters de los vídeos ya
+  enviados se ponen negros. Hay que migrarlas a rutas.
+- La regla de caché del PWA (`vite.config.ts`) casa contra
+  `/storage/v1/object/public/.*`. Una URL firmada va por `/object/sign/` con
+  token cambiante: deja de casar y cada imagen se rebaja en cada apertura.
 - La `service_role` se salta RLS: solo en n8n y en el servidor. NUNCA en
   ficheros del frontend ni en el repo del inbox.
 - El frontend usa la `anon` key y RLS. No tiene permiso de INSERT en
