@@ -1,6 +1,8 @@
-import { useState } from 'react'
-import { Megaphone, ExternalLink } from 'lucide-react'
+import { useCallback, useLayoutEffect, useRef, useState } from 'react'
+import { Megaphone, ExternalLink, ChevronDown, ChevronUp } from 'lucide-react'
 import { horaMensaje } from '@/lib/formato'
+import { useUI } from '@/store/ui'
+import { TextoMarcado } from './TextoMarcado'
 import type { AnuncioOrigen } from '@/tipos'
 
 /**
@@ -17,15 +19,77 @@ import type { AnuncioOrigen } from '@/tipos'
  * «Tú», y NO lleva marca de entrega. Un doble check aquí sería mentira: esto
  * no lo hemos enviado nosotros y no tenemos ningún estado que enseñar.
  *
- * EL CUERPO VA ENTERO. Sin `truncate` ni `line-clamp`: el texto del anuncio
- * es justo lo que dice de qué producto venía la conversación, y cortarlo a
- * dos líneas deja la pregunta a medio responder. Si es largo, ocupa lo que
- * ocupe — el hilo tiene scroll.
+ * SOLO SE PLIEGA EL CUERPO. El titular y la imagen se ven siempre: son lo que
+ * dice de qué producto venía la conversación de un vistazo, que es justo para
+ * lo que existe esta burbuja. Plegarlos ahorraría cuatro píxeles y quitaría
+ * la única razón de estar aquí.
  */
-export function BurbujaAnuncio({ a, creado }: { a: AnuncioOrigen; creado: string }) {
+export function BurbujaAnuncio({
+  a, creado, mensajeId,
+}: {
+  a: AnuncioOrigen
+  creado: string
+  /** Id del mensaje que trae el `referral`: la clave del estado desplegado. */
+  mensajeId: number
+}) {
   // La miniatura es una URL de Meta y caduca. Si no carga, se quita el hueco
   // en vez de dejar el icono de imagen rota: el texto es lo que importa.
   const [sinImagen, setSinImagen] = useState(false)
+
+  // Abierto/cerrado vive en el STORE, no aquí. El hilo está virtualizado y
+  // desmonta las burbujas que se van de la ventana: con un useState local,
+  // desplegabas el anuncio, bajabas a leer y al volver estaba plegado otra
+  // vez. Ver el comentario de `anunciosAbiertos` en store/ui.ts.
+  const abierto = useUI((s) => !!s.anunciosAbiertos[mensajeId])
+  const alternar = useUI((s) => s.alternarAnuncio)
+
+  const cuerpoRef = useRef<HTMLParagraphElement>(null)
+  const [desborda, setDesborda] = useState(false)
+
+  /**
+   * ¿El cuerpo pasa de dos líneas?
+   *
+   * Se mide de verdad, no se cuentan caracteres: cuántas líneas ocupa un
+   * texto depende del ancho del panel, del tamaño de letra y de dónde parta
+   * cada palabra. Un umbral de caracteres acertaría a veces y pondría un
+   * «Leer más» que no despliega nada el resto.
+   *
+   * OJO CON EL DETALLE QUE PARECE DE MÁS: la medición pone el recorte
+   * SIEMPRE, aunque la burbuja esté desplegada, y lo quita al terminar.
+   * Sin eso, al estar desplegada `scrollHeight` y `clientHeight` valen lo
+   * mismo, `desborda` sería false y el botón de «Leer menos» desaparecería
+   * — y como la virtualización remonta la burbuja al volver a entrar en
+   * pantalla, te quedarías con un anuncio abierto que ya no se puede
+   * cerrar. Va en useLayoutEffect para que ocurra antes de pintar y no se
+   * vea ni un parpadeo.
+   */
+  const medir = useCallback(() => {
+    const el = cuerpoRef.current
+    if (!el) return
+    const tenia = el.classList.contains('line-clamp-2')
+    if (!tenia) el.classList.add('line-clamp-2')
+    const hay = el.scrollHeight - el.clientHeight > 1
+    if (!tenia) el.classList.remove('line-clamp-2')
+    setDesborda(hay)
+  }, [])
+
+  useLayoutEffect(() => {
+    const el = cuerpoRef.current
+    if (!el) return
+    medir()
+
+    // Solo interesa el ANCHO: el alto cambia al desplegar, y reaccionar a
+    // eso sería medir dentro del observador que la propia medición dispara.
+    let anchoPrevio = el.getBoundingClientRect().width
+    const ro = new ResizeObserver((entradas) => {
+      const ancho = entradas[0].contentRect.width
+      if (Math.abs(ancho - anchoPrevio) < 0.5) return
+      anchoPrevio = ancho
+      medir()
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [medir, a.cuerpo])
 
   return (
     <div className="flex justify-end px-3">
@@ -47,14 +111,36 @@ export function BurbujaAnuncio({ a, creado }: { a: AnuncioOrigen; creado: string
 
         {a.titular && (
           <p className="whitespace-pre-wrap break-words text-[15px] font-semibold leading-snug">
-            {a.titular}
+            <TextoMarcado texto={a.titular} />
           </p>
         )}
 
         {a.cuerpo && (
-          <p className="whitespace-pre-wrap break-words text-[15px] leading-snug">
-            {a.cuerpo}
+          <p
+            ref={cuerpoRef}
+            className={[
+              'whitespace-pre-wrap break-words text-[15px] leading-snug',
+              abierto ? '' : 'line-clamp-2',
+            ].join(' ')}
+          >
+            <TextoMarcado texto={a.cuerpo} />
           </p>
+        )}
+
+        {/* El botón solo existe si hay algo que desplegar. Un «Leer más» que
+            al pulsarlo no cambia nada es peor que no tenerlo. */}
+        {a.cuerpo && desborda && (
+          <button
+            type="button"
+            onClick={() => alternar(mensajeId)}
+            aria-expanded={abierto}
+            className="mt-0.5 flex items-center gap-0.5 text-[12px] font-medium text-propio-texto/70 hover:text-propio-texto"
+          >
+            {abierto ? 'Leer menos' : 'Leer más'}
+            {abierto
+              ? <ChevronUp className="h-3 w-3" />
+              : <ChevronDown className="h-3 w-3" />}
+          </button>
         )}
 
         {a.enlace && (

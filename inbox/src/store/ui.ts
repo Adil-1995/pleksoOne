@@ -95,6 +95,25 @@ interface EstadoUI {
   deslizada: string | null
   setDeslizada: (clienteId: string | null) => void
 
+  /**
+   * Burbujas de anuncio con el cuerpo desplegado, por id de mensaje.
+   *
+   * VIVE AQUÍ Y NO DENTRO DE LA BURBUJA, y no es una preferencia de estilo:
+   * el hilo está virtualizado con `overscan: 10`, así que una burbuja que
+   * sale de la ventana se DESMONTA. Con un `useState` dentro, desplegabas
+   * el anuncio, bajabas a leer la conversación, volvías arriba y estaba
+   * plegado otra vez — sin ningún error, solo trabajo perdido.
+   *
+   * Por id de mensaje y no un solo id abierto —al revés que `deslizada`—
+   * porque aquí no hay motivo para cerrar uno al abrir otro: son textos
+   * distintos y querer leer los dos es lo normal.
+   *
+   * No se persiste. Es cómo estás mirando el hilo ahora mismo, no una
+   * decisión que haya que recordar mañana.
+   */
+  anunciosAbiertos: Record<number, boolean>
+  alternarAnuncio: (mensajeId: number) => void
+
   /** Índice resaltado en la lista, para navegar con j/k. */
   resaltado: number
   setResaltado: (i: number) => void
@@ -163,6 +182,12 @@ export const useUI = create<EstadoUI>((set) => ({
       productoFiltro: null, estadoProductoFiltro: null,
       busqueda: '', buscadorAbierto: false, resaltado: 0,
     }),
+
+  anunciosAbiertos: {},
+  alternarAnuncio: (mensajeId) =>
+    set((s) => ({
+      anunciosAbiertos: { ...s.anunciosAbiertos, [mensajeId]: !s.anunciosAbiertos[mensajeId] },
+    })),
 
   resaltado: 0,
   setResaltado: (i) => set({ resaltado: i }),

@@ -13,7 +13,7 @@
  *
  * No entra en el build: Vite solo empaqueta lo que cuelga de index.html.
  */
-import { useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot } from 'react-dom/client'
 import { BurbujaAnuncio } from '@/componentes/BurbujaAnuncio'
@@ -60,14 +60,26 @@ const CONV: Conversacion = {
 // El referral tal y como lo manda Meta, con el body ENTERO: es justo lo que
 // dice de qué producto venía la conversación y lo que no se puede recortar.
 const ANUNCIO: AnuncioOrigen = {
-  titular: 'Soporte magnético para el coche',
+  // Con marcado, como llega de verdad: antes salía con los asteriscos a la
+  // vista porque la burbuja lo pintaba como texto plano.
+  titular: '**Soporte Inteligente 360° con Carga Inalámbrica**',
   cuerpo:
     '¿Usas Waze o Google Maps prácticamente cada vez que manejas? Entonces ' +
     'esto te va a interesar: el soporte se pega al salpicadero, aguanta el ' +
     'teléfono en cualquier curva y se pone con una mano en dos segundos. ' +
-    'Envío gratis a todo México y se paga al recibir.',
+    'Carga mientras conduces, gira _360 grados_ y sirve para ~casi~ cualquier ' +
+    'móvil. **Envío gratis a todo México** y se paga al recibir.',
   enlace: 'https://fb.me/2Qk9anuncio',
   anuncioId: '120210000000',
+  miniatura: null,
+}
+
+/** Uno corto, para ver que con dos líneas NO sale el «Leer más». */
+const ANUNCIO_CORTO: AnuncioOrigen = {
+  titular: '**Termo de acero 1 litro**',
+  cuerpo: 'Mantiene el frío 24 h. Envío gratis.',
+  enlace: null,
+  anuncioId: '120210000001',
   miniatura: null,
 }
 
@@ -126,14 +138,32 @@ cliente.setQueryData(claves.canales, [CANAL])
  * con `el.value = '/'`: React guarda su propio valor y una asignación directa
  * la ignora, así que el desplegable no se abriría.
  */
-function useAbrirAlCargar() {
+function useAbrirAlCargar(remontar: () => void) {
   useEffect(() => {
     const que = new URLSearchParams(location.search).get('abrir')
     if (!que) return
 
     const t = setTimeout(() => {
+      // Simula lo que hace la virtualización del hilo: despliega el anuncio,
+      // DESMONTA la burbuja (como cuando sale del overscan al hacer scroll)
+      // y la vuelve a montar. Si el estado viviera dentro del componente,
+      // aquí volvería a salir plegada. Es la prueba del punto 3 del encargo.
+      if (que === 'remontar') {
+        const botones = Array.from(document.querySelectorAll('button'))
+        botones.find((b) => b.textContent?.includes('Leer más'))?.click()
+        setTimeout(remontar, 150)
+        return
+      }
+
       if (que === 'emojis') {
         document.querySelector<HTMLButtonElement>('[aria-label="Emojis"]')?.click()
+        return
+      }
+
+      // Desplegar el cuerpo del anuncio largo, para la captura del abierto.
+      if (que === 'anuncio') {
+        const botones = Array.from(document.querySelectorAll('button'))
+        botones.find((b) => b.textContent?.includes('Leer más'))?.click()
         return
       }
 
@@ -179,11 +209,18 @@ function useAbrirAlCargar() {
     }, 120)
 
     return () => clearTimeout(t)
-  }, [])
+  }, [remontar])
 }
 
 function Banco() {
-  useAbrirAlCargar()
+  // `montado` es lo que permite simular la virtualización: al ponerlo a false
+  // y volver a true, React desmonta y remonta la burbuja de cero.
+  const [montado, setMontado] = useState(true)
+  const remontar = useCallback(() => {
+    setMontado(false)
+    setTimeout(() => setMontado(true), 60)
+  }, [])
+  useAbrirAlCargar(remontar)
   return (
     <div className="flex h-full flex-col bg-fondo text-texto">
       <div className="border-b border-borde px-4 py-2 text-xs text-texto2">
@@ -197,8 +234,15 @@ function Banco() {
           </span>
         </div>
         {/* El anuncio va PRIMERO, antes del mensaje del cliente, que es el
-            orden en que ocurrió. */}
-        <div className="py-0.5"><BurbujaAnuncio a={ANUNCIO} creado={HILO[0].creado} /></div>
+            orden en que ocurrió. Los dos: el largo se pliega con «Leer más»,
+            el corto cabe en dos líneas y no lo enseña. */}
+        <div className="py-0.5">
+          {montado && <BurbujaAnuncio a={ANUNCIO} creado={HILO[0].creado} mensajeId={1} />}
+          {!montado && <div className="py-4 text-center text-xs text-texto2">(desmontada, como al salir del overscan)</div>}
+        </div>
+        <div className="py-0.5">
+          <BurbujaAnuncio a={ANUNCIO_CORTO} creado={HILO[0].creado} mensajeId={2} />
+        </div>
         {HILO.map((m) => (
           <div key={m.id} className="py-0.5"><Burbuja m={m} /></div>
         ))}

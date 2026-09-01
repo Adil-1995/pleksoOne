@@ -17,7 +17,7 @@ const SIN_OPTIMISTAS: MensajeEnLista[] = []
 
 type Elemento =
   | { clase: 'dia'; clave: string; iso: string }
-  | { clase: 'anuncio'; clave: string; a: AnuncioOrigen; iso: string }
+  | { clase: 'anuncio'; clave: string; a: AnuncioOrigen; iso: string; id: number }
   | { clase: 'msg'; clave: string; m: MensajeEnLista }
 
 export function Hilo({ conv }: { conv: Conversacion }) {
@@ -48,7 +48,7 @@ export function Hilo({ conv }: { conv: Conversacion }) {
       // cliente vuelve por un anuncio distinto semanas después, ese segundo
       // anuncio explica el cambio de tema y esconderlo sería perder el porqué.
       const anuncio = esOptimista(m) ? null : anuncioDe(m)
-      if (anuncio) out.push({ clase: 'anuncio', clave: 'a' + m.id, a: anuncio, iso: m.creado })
+      if (anuncio) out.push({ clase: 'anuncio', clave: 'a' + m.id, a: anuncio, iso: m.creado, id: m.id })
       out.push({ clase: 'msg', clave: 'm' + m.id, m })
     }
     return out
@@ -59,7 +59,7 @@ export function Hilo({ conv }: { conv: Conversacion }) {
     getScrollElement: () => contenedor.current,
     estimateSize: (i) => {
       const c = elementos[i]?.clase
-      return c === 'dia' ? 44 : c === 'anuncio' ? 180 : 76
+      return c === 'dia' ? 44 : c === 'anuncio' ? 150 : 76
     },
     overscan: 10,
     // Las burbujas miden lo que miden: sin esto, las imágenes descuadran todo.
@@ -129,7 +129,9 @@ export function Hilo({ conv }: { conv: Conversacion }) {
                   </span>
                 </div>
               ) : el.clase === 'anuncio' ? (
-                <div className="py-0.5"><BurbujaAnuncio a={el.a} creado={el.iso} /></div>
+                <div className="py-0.5">
+                  <BurbujaAnuncio a={el.a} creado={el.iso} mensajeId={el.id} />
+                </div>
               ) : (
                 <div className="py-0.5"><Burbuja m={el.m} /></div>
               )}
