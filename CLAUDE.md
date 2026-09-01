@@ -285,6 +285,33 @@ formatear, así que no llegó ninguno.
   filas: dejaba `"Mini Luces LED ... cantidad: 12 precio: $995"` entero en
   `pedidos.producto`, y por eso la tabla tenía 11 «productos» con un catálogo de 4.
   El texto del modelo vale como PISTA, nunca como dato
+- **El producto lo identifica el CUERPO del anuncio, no el titular.**
+  Comprobado el 1/9/2026 contra los 8 anuncios reales: **0 de 8** titulares
+  contienen una `palabra_clave`. «💧 Convierte tu grifo en agua filtrada» no
+  dice «filtro» ni «purificador». El cuerpo sí, siempre: «Este **Filtro
+  Purificador de Agua**…», «**Mini Luces LED Solares**». Con el cuerpo,
+  **8 de 8** y sin un solo ambiguo.
+  → ⚠️ **AL ESCRIBIR UN ANUNCIO NUEVO, el cuerpo TIENE que nombrar el
+    producto con una de sus `palabras_clave`.** Si no, el cliente recibe el
+    texto pero NUNCA la foto de la ficha, y no hay ningún error que lo avise.
+    Es lo que dejó al filtro de agua y a la mascarilla sin ficha desde el
+    31/8: sus anuncios ponen el producto en un EMOJI («Hola 👋 Me interesa 💧»)
+    y `normalizar()` borra los emojis. Los anuncios viejos decían «Qué precio
+    tienen las *Luces led con carga solar*?» y por eso las luces nunca fallaron.
+- **El `referral` solo viene en el PRIMER mensaje, y el buffer se lo come.**
+  Si el cliente manda dos mensajes seguidos, el buffer los junta y la ejecución
+  que llega a `Decidir ficha` es la del SEGUNDO, que ya no trae `referral`.
+  Medido: ejec 18766 con `ad_titulo='💧 Filtra el agua…'` (se para en el buffer)
+  y ejec 18767 con `ad_titulo=''` dos segundos después (esa es la que decide).
+  Por eso `Decidir ficha` lo rescata de `mensajes.payload` leyendo el historial,
+  donde está guardado entero desde el primer día. `_anuncio_rescatado` en la
+  salida del nodo dice si el rescate hizo falta.
+- **El cuerpo del anuncio NO se le pasa al modelo.** `Variables.ad_cuerpo` se
+  queda a `''` a propósito: de ahí sale el `[CONTEXTO: …]` que se inyecta al
+  prompt, y meterle 1300 caracteres de copy publicitario cambia lo que María
+  contesta. El cuerpo viaja por `ad_cuerpo_emparejar`, que solo lee el flujo.
+  Identificar es una decisión de negocio, y las decisiones van en el flujo
+  (regla 5).
 - **Un empate al emparejar es una duda, y una duda no se rellena.** Si dos productos
   encajan igual de bien, `producto_id` se queda a `null` y no se marca nada. Un hueco
   se ve y se investiga; un producto inventado se cuela en los filtros y nadie lo nota
