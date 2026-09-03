@@ -71,10 +71,37 @@ Fichero con permisos `600`, montado en el contenedor de n8n con `env_file`.
 **Ningún secreto va escrito dentro de un nodo.** Variables:
 
 `WA_VERIFY_TOKEN` · `WA_APP_SECRET` · `WA_PHONE_NUMBER_ID` ·
-`WA_WABA_ID` · `WA_TOKEN` · `WA_API_VERSION`
+`WA_WABA_ID` · `WA_TOKEN` · `WA_API_VERSION` ·
+`SUPABASE_URL` · `SUPABASE_SERVICE_ROLE` ·
+`TG_PEDIDOS_TOKEN` · `TG_PEDIDOS_CHAT` · `TG_INCIDENCIAS_TOKEN` · `TG_INCIDENCIAS_CHAT` ·
+`CAPI_TOKEN` · `CAPI_DATASET` *(ya no lo lee nadie — ver abajo)*
 
 Al cambiar cualquiera hay que recrear el contenedor:
 `cd /opt/bot && docker compose up -d --no-deps n8n` (~10 s de corte, Postgres no se toca).
+
+#### ⚠️ PENDIENTE, y en su propia tanda: `WA_API_VERSION=v23.0` está DEPRECADA
+
+Meta lo dice en la cabecera de **cada** respuesta, hoy 3/9/2026:
+
+```
+x-ad-api-version-warning: The call has been auto-upgraded to v25.0 as v23.0 has been deprecated.
+facebook-api-version: v25.0
+```
+
+Hoy Meta la sube sola y por eso no se nota nada. **El día que deje de
+autoelevar, se cae de golpe TODO lo que use esa variable, no solo el CAPI**:
+el envío de mensajes, la subida de media, `subscribed_apps`, el Purchase.
+No es un problema del CAPI, es un problema de una variable compartida.
+
+Es una tanda **para ella sola**: cambiarla obliga a recrear el contenedor de
+n8n, y hay que revisar antes qué rompe v24/v25 en cada llamada (los campos y
+los nombres de error cambian entre versiones). No se cuela de propina en otra
+tanda.
+
+`CAPI_DATASET` sigue en el fichero pero **ya no lo lee ningún nodo**: el
+dataset del CAPI sale de `canales.dataset_id` desde el 3/9/2026. Quitarlo
+obliga a recrear el contenedor, así que se va cuando toque la tanda de
+`WA_API_VERSION`.
 
 ### Tablas actuales
 `buffer_mensajes` · `contexto_cliente` · `alias_lid` · `pausados` · `pedidos` ·
