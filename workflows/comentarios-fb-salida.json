@@ -1,0 +1,244 @@
+{
+  "name": "Comentarios FB — Salida",
+  "nodes": [
+    {
+      "id": "nota-s",
+      "name": "Nota s",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        200,
+        60
+      ],
+      "parameters": {
+        "width": 1500,
+        "height": 210,
+        "content": "## Comentarios FB — Salida\n\n**El ÚNICO sitio de todo el proyecto que publica en Facebook.**\n\nEl grafo es LINEAL a propósito: un subflujo devuelve al padre lo que salga del ÚLTIMO nodo ejecutado (`lastNodeExecuted`). Colgar una rama de aviso en paralelo la convierte en la última, devuelve cero items y el padre muere en verde y sin error. Costó una tarde el 22/8.\n\n⚠️ Un **PUT** sobre este subflujo lo DESPUBLICA y tumba en cascada a quien lo llama.\nOrden obligatorio: activar ESTE primero, después el padre, y comprobar que responde de verdad."
+      }
+    },
+    {
+      "id": "entrada",
+      "name": "Entrada",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1,
+      "position": [
+        260,
+        340
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "validar-peticion",
+      "name": "Validar peticion",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        340
+      ],
+      "parameters": {
+        "jsCode": "// CONTRATO DEL PUNTO ÚNICO.\nconst p = $input.first().json || {};\n\n// Se exige TODO, sin excepciones por tipo de acción. La lección del 22/8 fue\n// exactamente esta: un campo que no se exigía en una rama, un valor por\n// defecto silencioso, y el canal 1 \"funcionando\" por casualidad.\nconst faltan = ['page_id', 'comment_id', 'texto'].filter(k => !p[k] || !String(p[k]).trim());\nif (faltan.length) throw new Error('Salida FB: faltan campos obligatorios: ' + faltan.join(', '));\nif (String(p.texto).length > 400) throw new Error('Salida FB: texto de más de 400 caracteres, no se publica');\n\n// Cinturón y tirantes: aunque el padre ya lo filtró, aquí NO pasa un precio.\nif (/\\$\\s?\\d/.test(p.texto)) throw new Error('Salida FB: el texto lleva un precio. No se publica.');\nif (!/https:\\/\\/wa\\.me\\//.test(p.texto)) throw new Error('Salida FB: el texto no lleva enlace de WhatsApp.');\n\nreturn [{ json: { page_id: String(p.page_id), comment_id: String(p.comment_id), texto: String(p.texto),\n  ad_id: p.ad_id || '', clase: p.clase || '', producto_id: p.producto_id || '' } }];"
+      }
+    },
+    {
+      "id": "token-de-pagina",
+      "name": "Token de pagina",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        700,
+        340
+      ],
+      "parameters": {
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "url": "=https://graph.facebook.com/v23.0/{{ $json.page_id }}?fields=access_token",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "FB_CRED_ID",
+          "name": "FB Comments Responder"
+        }
+      }
+    },
+    {
+      "id": "preparar-publicacion",
+      "name": "Preparar publicacion",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        340
+      ],
+      "parameters": {
+        "jsCode": "const t = $input.first().json;\nif (!t || !t.access_token) throw new Error('Salida FB: la página no devolvió access_token.');\nreturn [{ json: { ...$('Validar peticion').first().json, page_token: t.access_token } }];"
+      }
+    },
+    {
+      "id": "publicar-respuesta",
+      "name": "Publicar respuesta",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1140,
+        340
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v23.0/{{ $json.comment_id }}/comments",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.page_token }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "={{ $json.texto }}"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "registrar-en-log",
+      "name": "Registrar en Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1360,
+        340
+      ],
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1NKp7pJ-Fx-yE8IKM-Kgy_cB7d9ToVd6ECyNybDteUPQ",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "FB_Log",
+          "mode": "name"
+        },
+        "authentication": "serviceAccount",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "fecha": "={{ $now.toISO() }}",
+            "page_id": "={{ $('Preparar publicacion').first().json.page_id }}",
+            "ad_id": "={{ $('Preparar publicacion').first().json.ad_id }}",
+            "producto_id": "={{ $('Preparar publicacion').first().json.producto_id }}",
+            "comment_id": "={{ $('Preparar publicacion').first().json.comment_id }}",
+            "clase": "={{ $('Preparar publicacion').first().json.clase }}",
+            "accion": "publicado",
+            "texto": "={{ $('Preparar publicacion').first().json.texto }}",
+            "respuesta_id": "={{ $json.id }}"
+          },
+          "matchingColumns": []
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleApi": {
+          "id": "aRfirRPV9iB2zikq",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "id": "devolver",
+      "name": "Devolver",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1580,
+        340
+      ],
+      "parameters": {
+        "jsCode": "// ÚLTIMO NODO SIEMPRE: es lo que recibe el padre (lastNodeExecuted).\nconst pub = $('Publicar respuesta').first().json || {};\nconst p = $('Preparar publicacion').first().json;\nreturn [{ json: { ok: !!pub.id, respuesta_id: pub.id || null, comment_id: p.comment_id } }];"
+      }
+    }
+  ],
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "connections": {
+    "Entrada": {
+      "main": [
+        [
+          {
+            "node": "Validar peticion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar peticion": {
+      "main": [
+        [
+          {
+            "node": "Token de pagina",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Token de pagina": {
+      "main": [
+        [
+          {
+            "node": "Preparar publicacion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar publicacion": {
+      "main": [
+        [
+          {
+            "node": "Publicar respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publicar respuesta": {
+      "main": [
+        [
+          {
+            "node": "Registrar en Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar en Log": {
+      "main": [
+        [
+          {
+            "node": "Devolver",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
