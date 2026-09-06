@@ -1,7 +1,10 @@
 import { useRef, useState, type ChangeEvent, type ClipboardEvent, type KeyboardEvent } from 'react'
 import { Send, Paperclip, X, Loader2, AlertTriangle, Ban } from 'lucide-react'
 import { enviar, subirMedia, subirMiniatura, ponerBot } from '@/lib/envio'
-import { revisar, comprimirImagen, miniaturaDeVideo, tipoDeFichero } from '@/lib/media'
+import {
+  revisar, comprimirImagen, miniaturaDeVideo, tipoDeFichero,
+  imagenDelPortapapeles, pierdeAnimacion, ImagenIlegible,
+} from '@/lib/media'
 import { capacidadesDe, estadoVentana } from '@/lib/canales'
 import { pesoLegible } from '@/lib/formato'
 import { useUI } from '@/store/ui'
@@ -105,7 +108,24 @@ export function Redactor({ conv, canal }: { conv: Conversacion; canal: Canal | u
 
     let final = f
     if (rev.tipo === 'image') {
-      final = await comprimirImagen(f)
+      // Una animación se pierde al convertir, y hay que decirlo ANTES de que
+      // el cliente reciba un GIF quieto. No se bloquea el envío: un GIF
+      // parado casi siempre sigue valiendo, y lo que no vale es que Meta lo
+      // rechace en silencio, que es lo que pasaba antes.
+      const avisoAnimacion = pierdeAnimacion(f)
+        ? 'Un GIF animado no se puede enviar como imagen por WhatsApp: va el primer fotograma, sin movimiento.'
+        : null
+      try {
+        final = await comprimirImagen(f)
+      } catch (e) {
+        // Un tipo que este navegador no descodifica (HEIC del iPhone, un SVG
+        // sin tamaño). Antes esto era una promesa rechazada que nadie
+        // capturaba: no pasaba nada, no salía nada, y parecía que pegar no
+        // funcionaba.
+        setAviso(e instanceof ImagenIlegible ? e.message
+          : 'No se pudo preparar la imagen: ' + (e instanceof Error ? e.message : 'error desconocido'))
+        return
+      }
       if (final.size > rev.limite) {
         setAviso(
           `Ni comprimida baja de ${Math.round(rev.limite / 1048576)} MB ` +
@@ -113,6 +133,7 @@ export function Redactor({ conv, canal }: { conv: Conversacion; canal: Canal | u
         )
         return
       }
+      if (avisoAnimacion) setAviso(avisoAnimacion)
     }
     // Se sueltan los blobs del adjunto anterior antes de pisarlos. Pegando
     // varias imágenes seguidas se iban acumulando en memoria sin que nadie
@@ -128,24 +149,39 @@ export function Redactor({ conv, canal }: { conv: Conversacion; canal: Canal | u
   }
 
   /**
-   * Pegar con Ctrl+V. Una captura de pantalla llega en el portapapeles como
-   * fichero sin nombre, y hasta ahora había que guardarla a disco para poder
-   * mandarla por el clip.
+   * Pegar una imagen con Ctrl+V, venga de donde venga.
    *
-   * Solo se intercepta si el portapapeles trae DE VERDAD un fichero de
-   * imagen. Copiar texto de un correo puede arrastrar imágenes incrustadas,
-   * pero entonces `types` incluye 'text/plain' y aquí no se toca nada: si
-   * pegas texto tiene que pegarse el texto, sin sorpresas.
+   * Antes esto se rendía en cuanto el portapapeles traía `text/plain`:
+   *
+   *     if (!dt || dt.types.includes('text/plain')) return
+   *
+   * La intención era buena —si pegas texto, que se pegue el texto— pero la
+   * regla era demasiado bruta, porque MUCHAS copias de imagen arrastran
+   * texto de propina: copiar una imagen de Word, de Excel o de Outlook,
+   * copiar un fichero en el explorador de Windows (que añade la ruta como
+   * texto), y las capturas de ShareX o Lightshot, que añaden la URL. En
+   * todos esos casos pegar no hacía absolutamente nada, sin ningún error, y
+   * desde una captura del recortes de Windows sí funcionaba: el mismo gesto
+   * funcionaba o no según de dónde vinieras, sin patrón visible.
+   *
+   * La regla nueva mira el CONTENIDO, no los tipos declarados: si hay un
+   * fichero de imagen, se adjunta. Y si además venía texto de verdad, NO se
+   * hace `preventDefault`, así que el texto se pega igualmente y no se
+   * pierde nada de lo que habías copiado.
    */
   async function pegar(e: ClipboardEvent<HTMLTextAreaElement>) {
     if (!cap.puedeEnviarMedia) return
     const dt = e.clipboardData
-    if (!dt || dt.types.includes('text/plain')) return
+    if (!dt) return
 
-    const fichero = Array.from(dt.files).find((f) => f.type.startsWith('image/'))
-    if (!fichero) return
+    // SÍNCRONO y antes de cualquier await: pasado el primer await el
+    // navegador ya ha vaciado el portapapeles del evento.
+    const fichero = imagenDelPortapapeles(dt)
+    if (!fichero) return                    // no hay imagen: que pegue el texto
 
-    e.preventDefault()
+    const hayTexto = (dt.getData('text/plain') ?? '').trim().length > 0
+    if (!hayTexto) e.preventDefault()
+
     await aceptarFichero(fichero)
   }
 

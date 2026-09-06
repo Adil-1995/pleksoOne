@@ -47,9 +47,18 @@ function CampoImagen({
       onAviso('Solo imágenes. Un PDF o un vídeo se manda desde el clip del chat.')
       return
     }
-    // Mismo criterio que el compositor: se comprime antes de subir, para que
-    // no acabe en el bucket una foto que Meta va a rechazar al enviarla.
-    const comprimida = await comprimirImagen(f)
+    // Mismo criterio que el compositor: se convierte y comprime antes de
+    // subir, para que no acabe en el bucket una foto que Meta va a rechazar
+    // al enviarla. Y puede fallar —un HEIC del iPhone no lo abre ningún
+    // navegador de escritorio—, así que se captura: sin esto sería una
+    // promesa rechazada y el panel se quedaría mudo.
+    let comprimida: File
+    try {
+      comprimida = await comprimirImagen(f)
+    } catch (e) {
+      onAviso(e instanceof Error ? e.message : 'No se pudo preparar la imagen')
+      return
+    }
     const rev = revisar(comprimida)
     if (!rev.ok) { onAviso(rev.motivo!); return }
 
