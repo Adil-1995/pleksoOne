@@ -144,6 +144,50 @@ serviría de nada.
 
 ---
 
+## El ciclo en seco, sobre los datos reales del Sheet
+
+120 anuncios (los que tienen `producto_id`), en 4 tandas, ventana abierta para
+barrer todo el histórico. Las cuatro ejecuciones en `success`.
+
+```
+comentarios leídos ............ 803
+conjuntos distintos ............ 53   ← de 120 anuncios
+comment_id repetidos ............ 0
+
+publica ....................... 102   todas preguntas de precio
+solo aviso (queja/duda) ........ 49
+no publica ..................... 25
+descartado .................... 627
+   aplazado por límite ........ 499   el cupo por anuncio funcionando
+   ya respondido .............. 112   idempotencia vía Facebook, datos reales
+   demasiado corto .............. 7
+   vacío ........................ 5   el comentario '' es real y no rompe nada
+   sin texto (solo emojis) ...... 4
+```
+
+**Control de seguridad sobre las 102 que publicaría:**
+
+```
+textos distintos (sin el enlace) ... 1     una sola frase, siempre la misma
+con símbolo de precio .............. 0
+con cualquier dígito ............... 0
+con precio / oferta / cuesta ....... 0
+bloqueadas por el filtro de salida . 0
+enlace con la palabra_clave ...... 102 de 102
+```
+
+Reparto por producto: glowbrush 41, lucessolares 19, filtroagua 12, vapormax
+11, soporte360 10, cojinalivia 5, noctivelle 3, aspiradora 1.
+
+**33 quejas detectadas y ninguna contestada en público**, que es lo que se
+quería: «Chafa cepillo», «Jajajaja no lo compres es Chino», «Ojalá me manden el
+mío, aún no lo recibo».
+
+Una tanda de 30 anuncios devolvió **cuerpo vacío**: ninguno tenía comentarios,
+así que no hubo nada que clasificar y el webhook no responde. Es correcto —en
+PROD simplemente no se hace nada— pero conviene saberlo para no confundirlo con
+un fallo.
+
 ## Ficheros
 
 ```
