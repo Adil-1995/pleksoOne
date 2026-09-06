@@ -1,0 +1,79 @@
+{
+  "name": "Comentarios FB — Comprobar Sheet",
+  "nodes": [
+    {
+      "id": "nota",
+      "name": "Nota",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [200, 60],
+      "parameters": {
+        "width": 900,
+        "height": 180,
+        "content": "## Comprobar el Sheet, en vivo\n\nLee `FB_Paginas` y `FB_Anuncios` con la cuenta de servicio y devuelve un resumen.\n\nHace falta porque la API de Drive sirve el export CACHEADO: el Sheet se modificó a las 14:21 y el export de las 14:34 devolvía el contenido de las 14:18, byte a byte idéntico. Esto lee la fuente de verdad.\n\n**No publica nada. No toca Facebook.**"
+      }
+    },
+    {
+      "id": "webhook",
+      "name": "Webhook comprobar",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 320],
+      "webhookId": "c9f3e2ab-fb00-4e00-9000-comentariosfb3",
+      "parameters": { "httpMethod": "GET", "path": "fb-comprobar", "responseMode": "responseNode", "options": {} }
+    },
+    {
+      "id": "leerpag",
+      "name": "Leer Paginas",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [460, 320],
+      "parameters": {
+        "documentId": { "__rl": true, "value": "1NKp7pJ-Fx-yE8IKM-Kgy_cB7d9ToVd6ECyNybDteUPQ", "mode": "id" },
+        "sheetName": { "__rl": true, "value": "FB_Paginas", "mode": "name" },
+        "authentication": "serviceAccount",
+        "options": {}
+      },
+      "credentials": { "googleApi": { "id": "aRfirRPV9iB2zikq", "name": "Google Sheets account" } }
+    },
+    {
+      "id": "leeranun",
+      "name": "Leer Anuncios",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [680, 320],
+      "parameters": {
+        "documentId": { "__rl": true, "value": "1NKp7pJ-Fx-yE8IKM-Kgy_cB7d9ToVd6ECyNybDteUPQ", "mode": "id" },
+        "sheetName": { "__rl": true, "value": "FB_Anuncios", "mode": "name" },
+        "authentication": "serviceAccount",
+        "options": {}
+      },
+      "credentials": { "googleApi": { "id": "aRfirRPV9iB2zikq", "name": "Google Sheets account" } }
+    },
+    {
+      "id": "resumen",
+      "name": "Resumen",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 320],
+      "parameters": {
+        "jsCode": "const paginas  = $('Leer Paginas').all().map(i => i.json);\nconst anuncios = $input.all().map(i => i.json);\nconst si = (v) => String(v == null ? '' : v).trim().toUpperCase() === 'SI';\n\nconst activas = paginas.filter(p => si(p.activo));\nconst act = anuncios.filter(a => si(a.activo));\nconst listos = act.filter(a => activas.some(p => String(p.page_id).trim() === String(a.page_id).trim())\n  && String(a.producto_id || '').trim() && String(a.wa_destino || '').trim() && String(a.story_id || '').trim());\n\nconst destinos = {};\nfor (const a of act) { const d = String(a.wa_destino || '(vacio)').trim() || '(vacio)'; destinos[d] = (destinos[d] || 0) + 1; }\n\nconst problemas = [];\nfor (const a of act) {\n  const enPaginaActiva = activas.some(p => String(p.page_id).trim() === String(a.page_id).trim());\n  if (!enPaginaActiva) { problemas.push(a.ad_id + ' — activo pero su pagina NO lo esta'); continue; }\n  if (!String(a.producto_id || '').trim()) problemas.push(a.ad_id + ' — sin producto_id');\n  if (!String(a.wa_destino || '').trim())  problemas.push(a.ad_id + ' — sin wa_destino');\n  if (!String(a.story_id   || '').trim())  problemas.push(a.ad_id + ' — sin story_id');\n}\n\nreturn [{ json: {\n  leido_en: new Date().toISOString(),\n  FB_Paginas: paginas.map(p => ({ page_id: p.page_id, nombre: p.nombre, activo: p.activo })),\n  paginas_activas: activas.map(p => p.nombre + ' (' + p.page_id + ')'),\n  anuncios_totales: anuncios.length,\n  anuncios_activo_si: act.length,\n  anuncios_listos_para_contestar: listos.length,\n  destinos_wa: destinos,\n  problemas,\n  detalle_listos: listos.map(a => ({ ad_id: a.ad_id, page_id: a.page_id, producto_id: a.producto_id, wa_destino: a.wa_destino, story_id: a.story_id })),\n} }];"
+      }
+    },
+    {
+      "id": "responder",
+      "name": "Responder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1120, 320],
+      "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify($json) }}", "options": {} }
+    }
+  ],
+  "connections": {
+    "Webhook comprobar": { "main": [[{ "node": "Leer Paginas", "type": "main", "index": 0 }]] },
+    "Leer Paginas": { "main": [[{ "node": "Leer Anuncios", "type": "main", "index": 0 }]] },
+    "Leer Anuncios": { "main": [[{ "node": "Resumen", "type": "main", "index": 0 }]] },
+    "Resumen": { "main": [[{ "node": "Responder", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1", "availableInMCP": false }
+}

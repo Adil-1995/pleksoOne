@@ -19,7 +19,10 @@
 const VENTANA_HORAS          = 48;   // nada más viejo se toca. Esto es la "fecha de corte"
 const LIMITE_ANUNCIO_HORA    = 5;
 const LIMITE_ANUNCIO_DIA     = 20;
-const LIMITE_CICLO           = 10;   // en todas las páginas juntas
+// EN 1 A PROPÓSITO mientras se ve la primera respuesta real en público. Sube
+// a 10 cuando esa primera esté revisada y aprobada. Es el tope de TODO el
+// ciclo, sumando todas las páginas y todos los anuncios.
+const LIMITE_CICLO           = 1;
 const MAX_LONGITUD_RESPUESTA = 400;
 const MIN_CARACTERES_UTILES  = 3;
 

@@ -156,6 +156,13 @@ const JS_ENTRADA = cab('FILTRO DE ENTRADA + LÍMITE POR ANUNCIO') + `
 const ahora = Date.now();
 const fuera = [];
 
+// TOPE DE TODO EL CICLO, además del de cada anuncio. Estaba declarado en la
+// lógica y NO se aplicaba en ninguna parte: con 20 anuncios activos y 5 de
+// cupo cada uno salían 100 respuestas en un ciclo, que es exactamente la
+// automatización agresiva que se quería evitar. Un límite declarado y no
+// aplicado es peor que no tenerlo, porque se cuenta con él.
+let cupoCiclo = LIMITE_CICLO;
+
 // OJO: se lee de 'Juntar comentarios' POR NOMBRE, no de $input. Este nodo
 // cuelga de 'Leer Catalogo' (que va antes solo para que el catálogo esté
 // disponible más abajo), así que $input serían las filas del catálogo y este
@@ -188,7 +195,11 @@ for (const item of $('Juntar comentarios').all()) {
       fuera.push({ ...base, pasa: false, motivo: 'aplazado_por_limite' });
       continue;
     }
-    cupo--;
+    if (cupoCiclo <= 0) {
+      fuera.push({ ...base, pasa: false, motivo: 'aplazado_por_limite_del_ciclo' });
+      continue;
+    }
+    cupo--; cupoCiclo--;
     fuera.push({ ...base, pasa: true, motivo: null });
   }
 }
