@@ -60,6 +60,16 @@ interface EstadoUI {
   estadoProductoFiltro: EstadoProducto | null
   setEstadoProductoFiltro: (e: EstadoProducto | null) => void
 
+  /**
+   * Solo las conversaciones con mensajes sin leer.
+   *
+   * Es un booleano y no un `EstadoProducto` como los carritos porque aquí no
+   * hay estados que elegir: o las filtras o no. Se apoya en el `no_leidos`
+   * que ya escribe el flujo y ya pinta la fila — no hay dato nuevo.
+   */
+  soloNoLeidas: boolean
+  setSoloNoLeidas: (v: boolean) => void
+
   limpiarFiltros: () => void
 
   /**
@@ -167,6 +177,9 @@ export const useUI = create<EstadoUI>((set) => ({
   estadoProductoFiltro: null,
   setEstadoProductoFiltro: (e) => set({ estadoProductoFiltro: e, resaltado: 0 }),
 
+  soloNoLeidas: false,
+  setSoloNoLeidas: (v) => set({ soloNoLeidas: v, resaltado: 0 }),
+
   anclaLista: null,
   setAnclaLista: (a) => set({ anclaLista: a }),
 
@@ -179,7 +192,7 @@ export const useUI = create<EstadoUI>((set) => ({
   limpiarFiltros: () =>
     set({
       bandeja: 'bandeja', etiquetaFiltro: null, pedidoFiltro: null,
-      productoFiltro: null, estadoProductoFiltro: null,
+      productoFiltro: null, estadoProductoFiltro: null, soloNoLeidas: false,
       busqueda: '', buscadorAbierto: false, resaltado: 0,
     }),
 

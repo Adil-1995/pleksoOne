@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  Star, Inbox as IconoInbox, BellOff, Ban, X, Boxes, Search, Tag, ShoppingCart, Radio,
+  Star, Inbox as IconoInbox, BellOff, Ban, X, Boxes, Search, Tag, ShoppingCart, Radio, Mail,
 } from 'lucide-react'
 import { useUI, type Bandeja } from '@/store/ui'
 import { useEtiquetas, useCanales } from '@/hooks/datos'
@@ -34,7 +34,7 @@ export function FiltrosLista({ conversaciones }: { conversaciones: Conversacion[
     estadoProductoFiltro, setEstadoProductoFiltro,
     busqueda, setBusqueda, buscadorAbierto, abrirBuscador, cerrarBuscador,
     etiquetasAbiertas, alternarEtiquetas, pedidoFiltro, setPedidoFiltro,
-    canalFiltro, setCanalFiltro,
+    canalFiltro, setCanalFiltro, soloNoLeidas, setSoloNoLeidas,
   } = useUI()
   const { data: etiquetas } = useEtiquetas()
   const { data: canales } = useCanales()
@@ -104,9 +104,13 @@ export function FiltrosLista({ conversaciones }: { conversaciones: Conversacion[
   const conValidado = conversaciones.filter(
     (c) => estadoPedidoDe(c.conversacion_productos ?? []) === 'validado').length
 
+  // Conversaciones con algo sin leer. Sobre la lista entera y no sobre la
+  // bandeja, igual que los carritos: es un filtro global.
+  const conNoLeidas = conversaciones.filter((c) => c.no_leidos > 0).length
+
   const hayFiltro = etiquetaFiltro !== null || bandeja !== 'bandeja' ||
                     productoFiltro !== null || pedidoFiltro !== null ||
-                    canalFiltro !== null
+                    canalFiltro !== null || soloNoLeidas
 
   return (
     <div className="border-b border-borde">
@@ -298,6 +302,50 @@ export function FiltrosLista({ conversaciones }: { conversaciones: Conversacion[
                   </button>
                 ),
               )}
+
+              {/*
+                SIN LEER, justo a la derecha del carrito verde.
+
+                Es el mismo patrón que los carritos: un icono que filtra la
+                lista al pulsarlo y se enciende mientras está puesto. El dato
+                es el `no_leidos` que ya escribe el flujo y que ya pinta el
+                contador de cada fila — no hay dato nuevo ni consulta nueva.
+
+                CUENTA CONVERSACIONES, no mensajes. Es lo que cuentan los
+                carritos y las bandejas, y es lo que hace que el número
+                cuadre con las filas que ves al pulsarlo: si dijera 23
+                mensajes y salieran 9 filas, el número no serviría para nada.
+
+                EL NÚMERO SE VE SIEMPRE, no solo con el filtro puesto — al
+                revés que los carritos, y a propósito. Los carritos son un
+                cajón que miras cuando te toca; esto es lo que te dice si
+                tienes trabajo pendiente ahora mismo, y para eso hay que
+                leerlo sin pulsar nada.
+
+                Y NO SE ESCONDE CON CERO, otra vez al revés que los carritos.
+                Un icono que desaparece cuando no hay nada es indistinguible
+                de un icono roto, y ese sitio vacío es justo donde vas a
+                mirar. Con cero se queda apagado y sin número: dice «todo
+                leído», que también es una respuesta.
+              */}
+              <button
+                onClick={() => setSoloNoLeidas(!soloNoLeidas)}
+                title={'Sin leer (' + conNoLeidas + ')\n' +
+                       'Solo las conversaciones con mensajes que nadie ha abierto.'}
+                aria-label="Sin leer"
+                aria-pressed={soloNoLeidas}
+                className={[
+                  'flex shrink-0 items-center gap-1 rounded-full px-2 py-1.5 text-xs font-medium transition-colors',
+                  soloNoLeidas
+                    ? 'bg-acento text-fondo'
+                    : conNoLeidas > 0
+                      ? 'bg-panel2 text-acento hover:brightness-125'
+                      : 'bg-panel2 text-texto2 hover:text-texto',
+                ].join(' ')}
+              >
+                <Mail className="h-4 w-4" />
+                {conNoLeidas > 0 && <span className="tabular-nums">{conNoLeidas}</span>}
+              </button>
             </TiraDesplazable>
           </div>
 
@@ -363,7 +411,7 @@ export function FiltrosLista({ conversaciones }: { conversaciones: Conversacion[
           <div className="flex items-center gap-2 px-3 py-1">
             <span className="min-w-0 flex-1 truncate text-xs">
               <strong className="font-semibold">{descripcionFiltro({
-                bandeja, productoFiltro, estadoProductoFiltro, pedidoFiltro,
+                bandeja, productoFiltro, estadoProductoFiltro, pedidoFiltro, soloNoLeidas,
                 canal: canalesVisibles.find((c) => c.id === canalFiltro)?.nombre ?? null,
                 etiqueta: (etiquetas ?? []).find((e) => e.id === etiquetaFiltro)?.nombre ?? null,
               })}</strong>
@@ -462,12 +510,13 @@ function TiraDesplazable({
 
 /** Lo que estás viendo, en una frase. Sin adivinanzas. */
 function descripcionFiltro({
-  bandeja, productoFiltro, estadoProductoFiltro, pedidoFiltro, canal, etiqueta,
+  bandeja, productoFiltro, estadoProductoFiltro, pedidoFiltro, soloNoLeidas, canal, etiqueta,
 }: {
   bandeja: Bandeja
   productoFiltro: string | null
   estadoProductoFiltro: EstadoProducto | null
   pedidoFiltro: EstadoProducto | null
+  soloNoLeidas: boolean
   canal: string | null
   etiqueta: string | null
 }): string {
@@ -482,6 +531,7 @@ function descripcionFiltro({
   if (bandeja === 'favoritas') trozos.push('favoritos')
   if (bandeja === 'silenciadas') trozos.push('silenciadas')
   if (bandeja === 'bloqueadas') trozos.push('bloqueadas')
+  if (soloNoLeidas) trozos.push('sin leer')
   if (pedidoFiltro) trozos.push(PINTA_PEDIDO[pedidoFiltro].texto.toLowerCase())
   if (etiqueta) trozos.push(`etiqueta «${etiqueta}»`)
 
@@ -491,13 +541,14 @@ function descripcionFiltro({
 /** El filtrado en sí, fuera del componente para poder probarlo aparte. */
 export function aplicarFiltros(
   lista: Conversacion[],
-  { bandeja, etiquetaFiltro, canalFiltro, productoFiltro, estadoProductoFiltro, pedidoFiltro, busqueda }: {
+  { bandeja, etiquetaFiltro, canalFiltro, productoFiltro, estadoProductoFiltro, pedidoFiltro, soloNoLeidas, busqueda }: {
     bandeja: Bandeja
     etiquetaFiltro: number | null
     canalFiltro: number | null
     productoFiltro: string | null
     estadoProductoFiltro: EstadoProducto | null
     pedidoFiltro: EstadoProducto | null
+    soloNoLeidas: boolean
     busqueda: string
   },
 ): Conversacion[] {
@@ -523,6 +574,11 @@ export function aplicarFiltros(
   if (pedidoFiltro !== null) {
     out = out.filter((c) => estadoPedidoDe(c.conversacion_productos ?? []) === pedidoFiltro)
   }
+
+  // 4. Sin leer. Se COMBINA con el resto en vez de ser una bandeja aparte:
+  //    "sin leer de México" o "sin leer con pedido pendiente" son preguntas
+  //    útiles, y una bandeja excluyente no dejaría hacerlas.
+  if (soloNoLeidas) out = out.filter((c) => c.no_leidos > 0)
 
   // 3. Producto. El estado solo se aplica DENTRO de un producto: filtrar por
   //    "comprados" sin decir de qué mezclaría clientes de productos distintos

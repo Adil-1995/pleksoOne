@@ -25,7 +25,7 @@ export function ListaConversaciones() {
   const { data: conversaciones, isPending, error } = useConversaciones()
   const { data: canales } = useCanales()
   const { busqueda, resaltado, setResaltado, bandeja, etiquetaFiltro,
-          productoFiltro, estadoProductoFiltro, pedidoFiltro, canalFiltro,
+          productoFiltro, estadoProductoFiltro, pedidoFiltro, canalFiltro, soloNoLeidas,
           anclaLista, setAnclaLista, ultimaAbierta, setUltimaAbierta,
           deslizada, setDeslizada } = useUI()
   const marcas = useMarcas()
@@ -48,8 +48,8 @@ export function ListaConversaciones() {
 
   const filtradas = useMemo(
     () => aplicarFiltros(conversaciones ?? [],
-      { bandeja, etiquetaFiltro, canalFiltro, productoFiltro, estadoProductoFiltro, pedidoFiltro, busqueda }),
-    [conversaciones, bandeja, etiquetaFiltro, canalFiltro, productoFiltro, estadoProductoFiltro, pedidoFiltro, busqueda],
+      { bandeja, etiquetaFiltro, canalFiltro, productoFiltro, estadoProductoFiltro, pedidoFiltro, soloNoLeidas, busqueda }),
+    [conversaciones, bandeja, etiquetaFiltro, canalFiltro, productoFiltro, estadoProductoFiltro, pedidoFiltro, soloNoLeidas, busqueda],
   )
 
   const virtual = useVirtualizer({
@@ -505,18 +505,16 @@ export function Fila({
             </span>
           </div>
 
-          {/*
-            AQUÍ NO ESTÁ EL CONTADOR DE NO LEÍDOS. Estaba, con `ml-auto`, y
-            se ha ido a la columna de acciones, bajo el carrito. Dos motivos:
-            partía la línea del mensaje —el texto truncaba antes para dejarle
-            sitio— y quedaba a media fila, lejos del bloque donde ya viven la
-            hora y el canal, que es donde se mira. Ver abajo.
-          */}
           <div className="mt-0.5 flex items-center gap-1.5">
             <IconoEstado conv={conv} />
             <span className="truncate text-sm text-texto2">
               {resumen(conv.ultimo_texto) || <span className="italic opacity-60">Sin mensajes</span>}
             </span>
+            {conv.no_leidos > 0 && (
+              <span className="ml-auto min-w-[20px] shrink-0 rounded-full bg-acento px-1.5 py-0.5 text-center text-[11px] font-semibold text-fondo">
+                {conv.no_leidos > 99 ? '99+' : conv.no_leidos}
+              </span>
+            )}
           </div>
 
           {/*
@@ -631,76 +629,18 @@ export function Fila({
             nombre del producto. No chocan con él: son columnas hermanas de
             un flex, así que el producto trunca dentro de la suya y esta se
             queda con su ancho pase lo que pase.
-
-            EL CONTADOR DE NO LEÍDOS va en la celda de abajo del carrito, y
-            el chip del canal se muda a la celda que estaba vacía, bajo la
-            chincheta.
-
-            ⚠️ OJO CON LAS MEDIDAS DE ESTA REJILLA, que engañan.
-            `grid-cols-3` son tres `1fr`, o sea que las TRES columnas miden
-            lo que mida la celda más ancha de cualquiera de ellas. Y esa
-            celda es la HORA, que cambia de ancho según la fila: "24/08/26"
-            mide 44 px y "11:13" mide 26. Medido en producción el 6/9/2026,
-            las filas de HOY dan columnas de 26 px, no de 44. Si mides esto
-            en el banco, usa el caso «COMO PRODUCCIÓN», que lleva hora
-            corta y ningún pedido; los casos con fecha larga dan 44 px y te
-            hacen creer que sobra sitio.
-
-            Aun así el contador cabe sin ensanchar nada mientras sea de uno
-            o dos dígitos. Un "99+" (~31 px) sí pasa a ser la celda más
-            ancha y sube el bloque de 82 a ~97 px. Se acepta: pasa en pocas
-            filas y ensancha las tres columnas por igual, así que la
-            columna sigue alineada consigo misma y las filas no se
-            descolocan entre sí.
-
-            LA HORA SE PONE VERDE Y EN NEGRITA cuando hay sin leer, y no es
-            adorno: es la única forma de que la esquina se encuentre. Los
-            tres iconos de arriba son `acciones-fila`, o sea `opacity: 0`
-            hasta que pasas el ratón, y una conversación recién llegada casi
-            nunca tiene pedido — así que el carrito al que el contador
-            debería estar «al lado» NO SE VE. Comprobado en vivo: en una
-            fila con no leídos, pin, estrella y carrito estaban los tres a
-            opacity 0. Sin la hora en verde, el contador queda a 18×17 px
-            solo en la esquina, entre el chip del canal y la hora gris, que
-            son los dos elementos más apagados de la fila: se pinta y no se
-            encuentra. Es lo que hace WhatsApp, y por esto.
-
-            LAS TRES CELDAS SE PINTAN SIEMPRE, aunque estén vacías. La
-            rejilla coloca por orden de aparición: si el canal no se pintara
-            cuando no lo hay, la hora se subiría a la columna 1 y se
-            descolocaría respecto al favorito. Los `span` vacíos son los que
-            guardan el sitio.
           */}
-          {canal ? (
+          <span aria-hidden />
+          <span className="whitespace-nowrap text-[11px] leading-none text-texto2 tabular-nums">
+            {horaLista(conv.ultimo_en)}
+          </span>
+          {canal && (
             <span
               title={canal.nombre}
               className="whitespace-nowrap rounded px-1 py-0.5 text-[10px] font-semibold leading-none text-texto2 ring-1 ring-borde"
             >
               {distintivo(canal)}
             </span>
-          ) : (
-            <span aria-hidden />
-          )}
-
-          <span
-            className={[
-              'whitespace-nowrap text-[11px] leading-none tabular-nums',
-              conv.no_leidos > 0 ? 'font-bold text-acento' : 'text-texto2',
-            ].join(' ')}
-          >
-            {horaLista(conv.ultimo_en)}
-          </span>
-
-          {conv.no_leidos > 0 ? (
-            <span
-              className="min-w-[20px] self-center rounded-full bg-acento px-1.5 py-[4px] text-center text-[11px] font-bold leading-none text-fondo tabular-nums"
-              aria-label={`${conv.no_leidos} sin leer`}
-              title={`${conv.no_leidos} sin leer`}
-            >
-              {conv.no_leidos > 99 ? '99+' : conv.no_leidos}
-            </span>
-          ) : (
-            <span aria-hidden />
           )}
         </div>
       </div>
