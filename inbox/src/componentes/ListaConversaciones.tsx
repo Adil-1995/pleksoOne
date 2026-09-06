@@ -634,27 +634,42 @@ export function Fila({
 
             EL CONTADOR DE NO LEÍDOS va en la celda de abajo del carrito, y
             el chip del canal se muda a la celda que estaba vacía, bajo la
-            chincheta. Así el contador queda pegado al carrito, que es lo
-            que se pidió, y —esto es lo que decide el sitio— NO CUESTA UN
-            SOLO PÍXEL: las tres columnas ya existen y miden 44 px cada una
-            (`grid-cols-3` son `1fr`, y las iguala la hora, que es la celda
-            más ancha), mientras los iconos ocupan 24. El hueco ya estaba
-            pagado. Una cuarta columna habría subido el bloque de 136 a
-            ~181 px y, medido en el banco a 375 px, habría dejado la columna
-            del texto en 76 px: el nombre del cliente ilegible para ganar un
-            contador. El canal pierde su emparejamiento con el carrito, que
-            era estético y no significaba nada —el chip no habla del pedido—;
-            el contador sí gana estar donde se mira.
+            chincheta.
+
+            ⚠️ OJO CON LAS MEDIDAS DE ESTA REJILLA, que engañan.
+            `grid-cols-3` son tres `1fr`, o sea que las TRES columnas miden
+            lo que mida la celda más ancha de cualquiera de ellas. Y esa
+            celda es la HORA, que cambia de ancho según la fila: "24/08/26"
+            mide 44 px y "11:13" mide 26. Medido en producción el 6/9/2026,
+            las filas de HOY dan columnas de 26 px, no de 44. Si mides esto
+            en el banco, usa el caso «COMO PRODUCCIÓN», que lleva hora
+            corta y ningún pedido; los casos con fecha larga dan 44 px y te
+            hacen creer que sobra sitio.
+
+            Aun así el contador cabe sin ensanchar nada mientras sea de uno
+            o dos dígitos. Un "99+" (~31 px) sí pasa a ser la celda más
+            ancha y sube el bloque de 82 a ~97 px. Se acepta: pasa en pocas
+            filas y ensancha las tres columnas por igual, así que la
+            columna sigue alineada consigo misma y las filas no se
+            descolocan entre sí.
+
+            LA HORA SE PONE VERDE Y EN NEGRITA cuando hay sin leer, y no es
+            adorno: es la única forma de que la esquina se encuentre. Los
+            tres iconos de arriba son `acciones-fila`, o sea `opacity: 0`
+            hasta que pasas el ratón, y una conversación recién llegada casi
+            nunca tiene pedido — así que el carrito al que el contador
+            debería estar «al lado» NO SE VE. Comprobado en vivo: en una
+            fila con no leídos, pin, estrella y carrito estaban los tres a
+            opacity 0. Sin la hora en verde, el contador queda a 18×17 px
+            solo en la esquina, entre el chip del canal y la hora gris, que
+            son los dos elementos más apagados de la fila: se pinta y no se
+            encuentra. Es lo que hace WhatsApp, y por esto.
 
             LAS TRES CELDAS SE PINTAN SIEMPRE, aunque estén vacías. La
             rejilla coloca por orden de aparición: si el canal no se pintara
             cuando no lo hay, la hora se subiría a la columna 1 y se
             descolocaría respecto al favorito. Los `span` vacíos son los que
             guardan el sitio.
-
-            El contador NO reserva ancho ni desaparece la columna cuando no
-            hay nada que contar: la columna mide lo mismo con contador y
-            sin él, así que las filas de la lista no bailan entre sí.
           */}
           {canal ? (
             <span
@@ -667,13 +682,18 @@ export function Fila({
             <span aria-hidden />
           )}
 
-          <span className="whitespace-nowrap text-[11px] leading-none text-texto2 tabular-nums">
+          <span
+            className={[
+              'whitespace-nowrap text-[11px] leading-none tabular-nums',
+              conv.no_leidos > 0 ? 'font-bold text-acento' : 'text-texto2',
+            ].join(' ')}
+          >
             {horaLista(conv.ultimo_en)}
           </span>
 
           {conv.no_leidos > 0 ? (
             <span
-              className="min-w-[18px] self-center rounded-full bg-acento px-1.5 py-[3px] text-center text-[11px] font-semibold leading-none text-fondo tabular-nums"
+              className="min-w-[20px] self-center rounded-full bg-acento px-1.5 py-[4px] text-center text-[11px] font-bold leading-none text-fondo tabular-nums"
               aria-label={`${conv.no_leidos} sin leer`}
               title={`${conv.no_leidos} sin leer`}
             >

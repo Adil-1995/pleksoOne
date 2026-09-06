@@ -23,6 +23,10 @@ const ANCHO = Number(PARAMS.get('ancho')) || 375
 // La regla mide los anchos de verdad y los escribe arriba: ?regla=1. Apagada
 // por defecto porque tapa justo lo que se viene a mirar.
 const REGLA = PARAMS.get('regla') === '1'
+// El tema: ?tema=claro. Hacía falta porque el banco solo se miraba en oscuro
+// y el inbox de verdad se usa en CLARO, donde los colores no son los mismos
+// (--c-acento pasa de 0 168 132 a 0 138 108 sobre panel blanco).
+document.documentElement.setAttribute('data-tema', PARAMS.get('tema') === 'claro' ? 'claro' : 'oscuro')
 
 const cliente = new QueryClient({ defaultOptions: { queries: { retry: false } } })
 
@@ -100,6 +104,34 @@ const CASOS: { titulo: string; conv: Conversacion; canal?: Canal; callada?: bool
     titulo: '6. SIN fijar: ninguna chincheta encendida',
     conv: { ...base, cliente_id: '5215577665544', nombre: 'Rosa',
       ultimo_texto: '¿me llega mañana?', fijada: false },
+    canal: MX,
+  },
+  {
+    // ⚠️ EL CASO DE VERDAD, medido contra producción el 6/9/2026.
+    //
+    // Los casos de arriba mienten sin querer: todos tienen producto (así que
+    // el carrito se ve) y todos traen una hora larga tipo "24/08/26", que es
+    // la celda que ensancha la rejilla a 44 px. En el inbox real la mayoría
+    // de las filas NO tienen pedido —el carrito está a `opacity: 0`, solo
+    // asoma al pasar por encima— y la hora del día es corta ("11:13", 26 px).
+    //
+    // Resultado medido en producción: columnas de 26 px, no de 44, y el
+    // contador solo en la esquina, sin carrito encima al que ir "al lado".
+    titulo: '0. COMO PRODUCCIÓN: sin pedido, hora corta, solo no leídos',
+    conv: { ...base, cliente_id: '34641691299', nombre: 'Adil',
+      ultimo_texto: 'hola', no_leidos: 1,
+      ultimo_en: new Date().toISOString() },
+    canal: MX,
+  },
+  {
+    // El mismo caso de producción pero con el contador de 3 cifras, que es
+    // el único que ensancha la rejilla: "99+" mide ~31 px y pasa a ser la
+    // celda más ancha por delante de la hora corta (26 px). Aquí se mira
+    // que las tres columnas crezcan A LA VEZ y sigan alineadas.
+    titulo: '0b. COMO PRODUCCIÓN con 99+: la rejilla se ensancha a la vez',
+    conv: { ...base, cliente_id: '5213318302593', nombre: 'Carmen Escobedo',
+      ultimo_texto: 'sigo esperando respuesta', no_leidos: 137,
+      ultimo_en: new Date().toISOString() },
     canal: MX,
   },
   {
