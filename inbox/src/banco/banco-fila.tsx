@@ -103,7 +103,17 @@ const CASOS: { titulo: string; conv: Conversacion; canal?: Canal; callada?: bool
     canal: MX,
   },
   {
-    titulo: '7. Sin canal (no hay chip MX): la hora se queda sola',
+    // El caso que se pidió mirar: los tres a la vez, sin el ruido del
+    // nombre kilométrico del caso 4. Carrito VERDE (validado), contador de
+    // no leídos justo debajo y chincheta encendida.
+    titulo: '7. Carrito VERDE + no leídos + fijada (los tres a la vez)',
+    conv: { ...base, cliente_id: '5218331122334', nombre: 'Lupita',
+      ultimo_texto: '¿ya salió mi pedido?', no_leidos: 5, fijada: true,
+      conversacion_productos: [producto('lucessolares', 'validado')] },
+    canal: MX,
+  },
+  {
+    titulo: '8. Sin canal (no hay chip MX): la hora se queda sola',
     conv: { ...base, cliente_id: '34641691299', nombre: 'Adil',
       ultimo_texto: 'perfecto, gracias', ultimo_en: '2026-08-21T18:02:00Z' },
     canal: undefined,
@@ -120,20 +130,21 @@ function Regla() {
         const acciones = hijos[2]
         if (!acciones) return 'fila ' + (i + 1) + ' sin acciones'
         // Los 6 huecos de la rejilla en orden: pin, favorito, carrito,
-        // (vacío), hora, canal. Miramos el CENTRO de cada uno.
+        // canal, hora, no leídos. Miramos el CENTRO de cada uno: lo que hay
+        // que ver es que la columna de abajo cae bajo la de arriba.
         const centroDe = (el: Element | undefined) => {
           if (!el) return null
           const r = el.getBoundingClientRect()
           return Math.round(r.left + r.width / 2 - acciones.getBoundingClientRect().left)
         }
         const cajas = [...acciones.children]
-        const favorito = cajas[1], carrito = cajas[2], hora = cajas[4], canal = cajas[5]
+        const favorito = cajas[1], carrito = cajas[2], hora = cajas[4], noLeidos = cajas[5]
         return [
           'fila ' + (i + 1),
           'favorito@' + centroDe(favorito),
           'hora@' + centroDe(hora),
           '| carrito@' + centroDe(carrito),
-          'canal@' + centroDe(canal),
+          'noleidos@' + centroDe(noLeidos),
         ].join(' ')
       })
       setTxt(lineas.join(String.fromCharCode(10)))
@@ -147,7 +158,8 @@ function Banco() {
   return (
     <div className="min-h-full overflow-hidden bg-fondo p-3 text-texto" style={{ width: ANCHO }}>
       <p className="mb-3 text-xs text-texto2">
-        {ANCHO} px · la HORA bajo el favorito, el chip del canal bajo el carrito
+        {ANCHO} px · la HORA bajo el favorito, los NO LEÍDOS bajo el carrito,
+        el chip del canal bajo la chincheta
       </p>
       {REGLA && <Regla />}
       {CASOS.map((c, i) => (

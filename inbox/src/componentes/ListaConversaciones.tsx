@@ -505,16 +505,18 @@ export function Fila({
             </span>
           </div>
 
+          {/*
+            AQUÍ NO ESTÁ EL CONTADOR DE NO LEÍDOS. Estaba, con `ml-auto`, y
+            se ha ido a la columna de acciones, bajo el carrito. Dos motivos:
+            partía la línea del mensaje —el texto truncaba antes para dejarle
+            sitio— y quedaba a media fila, lejos del bloque donde ya viven la
+            hora y el canal, que es donde se mira. Ver abajo.
+          */}
           <div className="mt-0.5 flex items-center gap-1.5">
             <IconoEstado conv={conv} />
             <span className="truncate text-sm text-texto2">
               {resumen(conv.ultimo_texto) || <span className="italic opacity-60">Sin mensajes</span>}
             </span>
-            {conv.no_leidos > 0 && (
-              <span className="ml-auto min-w-[20px] shrink-0 rounded-full bg-acento px-1.5 py-0.5 text-center text-[11px] font-semibold text-fondo">
-                {conv.no_leidos > 99 ? '99+' : conv.no_leidos}
-              </span>
-            )}
           </div>
 
           {/*
@@ -629,18 +631,56 @@ export function Fila({
             nombre del producto. No chocan con él: son columnas hermanas de
             un flex, así que el producto trunca dentro de la suya y esta se
             queda con su ancho pase lo que pase.
+
+            EL CONTADOR DE NO LEÍDOS va en la celda de abajo del carrito, y
+            el chip del canal se muda a la celda que estaba vacía, bajo la
+            chincheta. Así el contador queda pegado al carrito, que es lo
+            que se pidió, y —esto es lo que decide el sitio— NO CUESTA UN
+            SOLO PÍXEL: las tres columnas ya existen y miden 44 px cada una
+            (`grid-cols-3` son `1fr`, y las iguala la hora, que es la celda
+            más ancha), mientras los iconos ocupan 24. El hueco ya estaba
+            pagado. Una cuarta columna habría subido el bloque de 136 a
+            ~181 px y, medido en el banco a 375 px, habría dejado la columna
+            del texto en 76 px: el nombre del cliente ilegible para ganar un
+            contador. El canal pierde su emparejamiento con el carrito, que
+            era estético y no significaba nada —el chip no habla del pedido—;
+            el contador sí gana estar donde se mira.
+
+            LAS TRES CELDAS SE PINTAN SIEMPRE, aunque estén vacías. La
+            rejilla coloca por orden de aparición: si el canal no se pintara
+            cuando no lo hay, la hora se subiría a la columna 1 y se
+            descolocaría respecto al favorito. Los `span` vacíos son los que
+            guardan el sitio.
+
+            El contador NO reserva ancho ni desaparece la columna cuando no
+            hay nada que contar: la columna mide lo mismo con contador y
+            sin él, así que las filas de la lista no bailan entre sí.
           */}
-          <span aria-hidden />
-          <span className="whitespace-nowrap text-[11px] leading-none text-texto2 tabular-nums">
-            {horaLista(conv.ultimo_en)}
-          </span>
-          {canal && (
+          {canal ? (
             <span
               title={canal.nombre}
               className="whitespace-nowrap rounded px-1 py-0.5 text-[10px] font-semibold leading-none text-texto2 ring-1 ring-borde"
             >
               {distintivo(canal)}
             </span>
+          ) : (
+            <span aria-hidden />
+          )}
+
+          <span className="whitespace-nowrap text-[11px] leading-none text-texto2 tabular-nums">
+            {horaLista(conv.ultimo_en)}
+          </span>
+
+          {conv.no_leidos > 0 ? (
+            <span
+              className="min-w-[18px] self-center rounded-full bg-acento px-1.5 py-[3px] text-center text-[11px] font-semibold leading-none text-fondo tabular-nums"
+              aria-label={`${conv.no_leidos} sin leer`}
+              title={`${conv.no_leidos} sin leer`}
+            >
+              {conv.no_leidos > 99 ? '99+' : conv.no_leidos}
+            </span>
+          ) : (
+            <span aria-hidden />
           )}
         </div>
       </div>
