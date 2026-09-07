@@ -4,10 +4,10 @@ import { useUI } from '@/store/ui'
 import type { Conversacion } from '@/tipos'
 
 /**
- * Atajos de teclado: j/k mover, Ctrl+B buscar, Esc cerrar.
+ * Atajos de teclado: A/D mover, Ctrl+B buscar, Esc cerrar.
  *
- * Las teclas SUELTAS (j, k) no se disparan mientras escribes en un campo: si
- * no, sería imposible teclear una jota dentro de un mensaje.
+ * Las teclas SUELTAS (a, d) no se disparan mientras escribes en un campo: si
+ * no, sería imposible teclear una a dentro de un mensaje.
  *
  * Ctrl+B SÍ funciona escribiendo, y a propósito. Es un acorde, no se pulsa sin
  * querer, y si solo funcionara fuera del campo habría que salir del mensaje
@@ -63,9 +63,14 @@ export function useAtajos(conversaciones: Conversacion[]) {
 
       if (escribiendo(e.target) || e.metaKey || e.ctrlKey || e.altKey) return
 
-      if (e.key === 'j' || e.key === 'k') {
+      // A sube, D baja: la misma mano que en WASD, sin tener que pensar cuál
+      // era la de arriba. Se compara en minúscula y no contra 'a'/'d' a secas
+      // para que sigan valiendo con Bloq Mayús puesto: con la mayúscula fuera
+      // de la comparación, la navegación se moriría sin dar un solo aviso.
+      const tecla = e.key.toLowerCase()
+      if (tecla === 'a' || tecla === 'd') {
         e.preventDefault()
-        const delta = e.key === 'j' ? 1 : -1
+        const delta = tecla === 'd' ? 1 : -1
         const siguiente = Math.max(0, Math.min(conversaciones.length - 1, resaltado + delta))
         moverResaltado(delta, conversaciones.length)
         const c = conversaciones[siguiente]

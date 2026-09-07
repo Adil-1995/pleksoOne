@@ -70,7 +70,7 @@ export function ListaConversaciones() {
   // `saltarAjuste` existe porque pulsar una fila también mueve el resaltado,
   // y entonces esto llamaba a scrollToIndex sobre una lista aún a medio
   // medir: la lista se desplazaba 442 px en el momento de abrir, antes
-  // siquiera de volver. Con j/k sí hace falta; con el ratón no.
+  // siquiera de volver. Con A/D sí hace falta; con el ratón no.
   useEffect(() => {
     if (saltarAjuste.current) { saltarAjuste.current = false; return }
     if (filtradas.length) virtual.scrollToIndex(resaltado, { align: 'auto' })

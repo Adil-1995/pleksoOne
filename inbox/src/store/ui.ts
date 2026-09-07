@@ -124,7 +124,7 @@ interface EstadoUI {
   anunciosAbiertos: Record<number, boolean>
   alternarAnuncio: (mensajeId: number) => void
 
-  /** Índice resaltado en la lista, para navegar con j/k. */
+  /** Índice resaltado en la lista, para navegar con A/D. */
   resaltado: number
   setResaltado: (i: number) => void
   moverResaltado: (delta: number, maximo: number) => void
@@ -151,7 +151,7 @@ export const useUI = create<EstadoUI>((set) => ({
   setBusqueda: (v) => set({ busqueda: v, resaltado: 0 }),
 
   // Al cambiar de filtro, el resaltado del teclado vuelve arriba: si se
-  // quedara en el índice 7 de una lista que ahora tiene 2, j/k apuntarían
+  // quedara en el índice 7 de una lista que ahora tiene 2, A/D apuntarían
   // a la nada.
   bandeja: 'bandeja',
   setBandeja: (b) => set({ bandeja: b, resaltado: 0 }),

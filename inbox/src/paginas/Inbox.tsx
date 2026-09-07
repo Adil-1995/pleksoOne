@@ -76,7 +76,7 @@ export function Inbox() {
           <div className="fondo-hilo flex h-full items-center justify-center">
             <Vacio
               titulo="Elige una conversación"
-              detalle="j / k para moverte · / para buscar · Esc para cerrar"
+              detalle="A / D para moverte · Ctrl+B para buscar · Esc para cerrar"
             />
           </div>
         )}

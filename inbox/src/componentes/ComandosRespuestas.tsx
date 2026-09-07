@@ -163,11 +163,11 @@ function Miniatura({ respuesta }: { respuesta: RespuestaRapida }) {
  * Devuelve true si la tecla se ha consumido: entonces el Redactor NO debe
  * hacer lo suyo (sobre todo, Enter no debe enviar el mensaje).
  *
- * SOBRE j/k: aquí no pueden ser j y k a secas. En la lista de conversaciones
- * funcionan porque no estás escribiendo; dentro del campo de mensaje son dos
- * letras que hacen falta para filtrar, y con ellas capturadas «/jueves» sería
- * imposible de teclear. Se dejan en Ctrl+J y Ctrl+K, que es lo mismo sin
- * robarle letras al filtro.
+ * SOBRE Ctrl+J y Ctrl+K: aquí no pueden ser letras a secas, ni las A/D de la
+ * lista de conversaciones ni ningunas otras. Allí funcionan porque no estás
+ * escribiendo; dentro del campo de mensaje son letras que hacen falta para
+ * filtrar, y con ellas capturadas «/jueves» sería imposible de teclear. Se
+ * quedan en Ctrl+J y Ctrl+K, que es lo mismo sin robarle letras al filtro.
  */
 export function teclasComandos(
   e: KeyboardEvent<HTMLTextAreaElement>,
