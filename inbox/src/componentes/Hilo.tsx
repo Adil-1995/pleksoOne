@@ -45,9 +45,15 @@ export function Hilo({ conv }: { conv: Conversacion }) {
   const anclado = useRef(true)
   const observador = useRef<ResizeObserver | null>(null)
 
+  // TODO el que baje pasa por aquí, y por eso la comprobación del ancla está
+  // AQUÍ y no en cada llamador. Estuvo solo en el ResizeObserver y era una
+  // carrera: los dos requestAnimationFrame de más abajo quedan pendientes unos
+  // milisegundos, y si sueltas el ancla justo en ese hueco te bajaban igual.
+  // Medido: la misma prueba salía «se queda arriba» o «vuelve abajo» según
+  // llegara la rueda antes o después del fotograma.
   const alFinal = useCallback(() => {
     const c = contenedor.current
-    if (c) c.scrollTop = c.scrollHeight
+    if (c && anclado.current) c.scrollTop = c.scrollHeight
   }, [])
 
   // Ref de callback y no un useRef normal a propósito: el div de dentro no
@@ -57,7 +63,7 @@ export function Hilo({ conv }: { conv: Conversacion }) {
     observador.current?.disconnect()
     observador.current = null
     if (!el) return
-    observador.current = new ResizeObserver(() => { if (anclado.current) alFinal() })
+    observador.current = new ResizeObserver(alFinal)
     observador.current.observe(el)
   }, [alFinal])
 
@@ -159,9 +165,21 @@ export function Hilo({ conv }: { conv: Conversacion }) {
         contra la columna de 800px, no contra el panel. Quien manda el ancho
         es la burbuja (max-w 65%), no el contenedor.
       */}
+      {/*
+        shrink-0 NO es adorno, y sin el el ancla de arriba no funciona.
+        Este div es hijo de un contenedor `flex flex-col`, o sea un item flex
+        con `flex-shrink: 1` por defecto: cuando el hilo es mas alto que el
+        panel, flexbox lo ENCOGE hasta el alto del panel. Medido: con
+        `style.height` a 1333 px su caja real medía 558. El hilo hacia scroll
+        igualmente porque las burbujas van en `position: absolute` y desbordan
+        la caja, asi que no se notaba nada... salvo que el ResizeObserver del
+        ancla no se enteraba JAMAS: el alto de la caja no cambiaba nunca.
+        Con shrink-0 la caja mide de verdad lo que dice getTotalSize(), el
+        observador dispara, y de paso el `py-3` de abajo deja de perderse.
+      */}
       <div
         ref={ponerLienzo}
-        className="w-full"
+        className="w-full shrink-0"
         style={{ height: virtual.getTotalSize(), position: 'relative', marginTop: 'auto' }}
       >
         {virtual.getVirtualItems().map((v) => {
