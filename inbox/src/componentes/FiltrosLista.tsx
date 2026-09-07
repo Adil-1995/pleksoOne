@@ -461,6 +461,12 @@ export function FiltrosLista({ conversaciones }: { conversaciones: Conversacion[
  * una tira desbordada es indistinguible de una tira completa. El degradado
  * del borde es la única pista, así que solo se pinta cuando de verdad hay
  * contenido fuera y desaparece al llegar al final.
+ *
+ * En el ORDENADOR, además, hay que mover la tira a mano. Un ratón normal solo
+ * genera `deltaY`, y el navegador lleva ese gesto al primer antepasado que
+ * desplace en VERTICAL: la tira, que solo desplaza en horizontal, se queda
+ * quieta y parece rota. El trackpad sí da `deltaX` y por eso ahí funcionaba.
+ * Lo traducimos nosotros en el `wheel` de más abajo.
  */
 function TiraDesplazable({
   children, separador = true,
@@ -488,6 +494,34 @@ function TiraDesplazable({
     ro.observe(el)
     return () => ro.disconnect()
   }, [medir, children])
+
+  // La rueda vertical, convertida en desplazamiento horizontal.
+  //
+  // Va como listener NATIVO con `passive: false` y no como `onWheel` de React:
+  // React registra `wheel` en la raíz como pasivo, y en un listener pasivo el
+  // `preventDefault` no hace nada (solo un aviso en consola). Sin ese
+  // preventDefault, el gesto además desplazaría la lista de conversaciones
+  // por detrás, y verías las dos cosas moverse a la vez.
+  useEffect(() => {
+    const el = caja.current
+    if (!el) return
+    const alRodar = (e: WheelEvent) => {
+      if (el.scrollWidth <= el.clientWidth) return        // no hay nada que mover
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return // el trackpad ya sabe solo
+
+      // `deltaMode` no siempre viene en píxeles: Firefox suele mandar líneas.
+      const paso = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? el.clientWidth : 1
+      const antes = el.scrollLeft
+      el.scrollLeft += e.deltaY * paso
+
+      // Si no nos hemos movido es que ya estábamos en un extremo. Entonces NO
+      // nos tragamos el gesto: que siga su camino y desplace la lista, que es
+      // lo que espera cualquiera al seguir girando la rueda.
+      if (el.scrollLeft !== antes) e.preventDefault()
+    }
+    el.addEventListener('wheel', alRodar, { passive: false })
+    return () => el.removeEventListener('wheel', alRodar)
+  }, [])
 
   return (
     <div className={['relative', separador ? 'border-t border-borde' : ''].join(' ')}>
