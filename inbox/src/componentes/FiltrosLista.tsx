@@ -238,18 +238,33 @@ export function FiltrosLista({ conversaciones }: { conversaciones: Conversacion[
               {productos.length > 0 && (
                 <Reordenable id="producto">
                 <label className="relative flex shrink-0 items-center" title="Filtrar por producto">
-                  <Boxes className={[
-                    'pointer-events-none absolute left-2 h-4 w-4',
-                    productoFiltro ? 'text-fondo' : 'text-texto2',
-                  ].join(' ')} />
+                  {/*
+                    EL SELECT VA INVISIBLE ENCIMA y lo que se ve es este
+                    `span`, igual que el filtro de canal de aqui abajo.
+
+                    Antes se pintaba el propio `<select>` estrechado a 32 px
+                    con `pl-7`, y por esos cuatro pixeles asomaba la primera
+                    letra de su opcion: se veia una «P» suelta al lado del
+                    icono. Un `<select>` cerrado SIEMPRE pinta el texto de la
+                    opcion elegida, asi que recortarlo no lo esconde: hay que
+                    taparlo.
+                  */}
+                  <span className={[
+                    'pointer-events-none flex items-center gap-1 rounded-full py-1.5 text-xs font-medium transition-colors',
+                    productoFiltro
+                      ? 'bg-acento px-2 text-fondo'
+                      : 'w-8 justify-center bg-panel2 text-texto2',
+                  ].join(' ')}>
+                    <Boxes className="h-4 w-4 shrink-0" />
+                    {productoFiltro && (
+                      <span className="max-w-[7rem] truncate">{nombreProducto(productoFiltro)}</span>
+                    )}
+                  </span>
                   <select
                     value={productoFiltro ?? ''}
                     onChange={(e) => setProductoFiltro(e.target.value || null)}
                     aria-label="Filtrar por producto"
-                    className={[
-                      'cursor-pointer appearance-none rounded-full py-1.5 pl-7 text-xs font-medium outline-none transition-all',
-                      productoFiltro ? 'bg-acento pr-3 text-fondo' : 'w-8 bg-panel2 pr-0 text-texto2 hover:text-texto',
-                    ].join(' ')}
+                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
                   >
                     <option value="">Producto…</option>
                     {productos.map((p) => (
