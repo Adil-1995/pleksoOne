@@ -95,16 +95,50 @@ export function motivoCorrupta(c: Conversacion): string | null {
  * haya hilos muertos, y se cuentan aparte para que se vean. Un hueco se
  * investiga; una fila desaparecida en silencio, no.
  */
+/**
+ * El orden de la lista: fijadas arriba, y dentro de cada grupo por fecha.
+ *
+ * Está aquí suelto porque lo usan DOS caminos: la carga inicial y el parcheo
+ * de Realtime. Si el parcheo no volviera a ordenar, una conversación que
+ * recibe un mensaje se quedaría donde estaba en vez de subir al principio —
+ * y eso es de las cosas que no se notan hasta que se te pasa un cliente.
+ */
+export function ordenarLista(lista: Conversacion[]): Conversacion[] {
+  return lista.slice().sort((a, b) => {
+    if (!!a.fijada !== !!b.fijada) return a.fijada ? -1 : 1
+    return (b.ultimo_en ?? '').localeCompare(a.ultimo_en ?? '')
+  })
+}
+
+/**
+ * Mete en la lista la fila que acaba de llegar por Realtime.
+ *
+ * Devuelve la lista nueva, o `null` si NO se puede parchear con garantías —
+ * y entonces quien llama recarga, que es el comportamiento de siempre.
+ *
+ * Está fuera del hook para poder probarla: es el sitio donde un fallo no se
+ * vería hasta que a alguien se le pasa un cliente.
+ */
+export function parchearConversacion(
+  lista: Conversacion[] | undefined,
+  fila: Partial<Conversacion> | undefined,
+): Conversacion[] | null {
+  if (!lista || !fila || fila.id == null) return null
+  const i = lista.findIndex((c) => c.id === fila.id)
+  if (i < 0) return null                    // no está: que recargue y entre
+  const copia = lista.slice()
+  // MEZCLA, no sustitución: el evento trae las columnas de la tabla y no los
+  // embeds. Sustituir borraría el carrito y las etiquetas de esa fila.
+  copia[i] = { ...copia[i], ...fila }
+  return ordenarLista(copia)
+}
+
 function separar(filas: unknown): { validas: Conversacion[]; corruptas: Conversacion[] } {
   const lista = (filas ?? []) as unknown as Conversacion[]
   const validas: Conversacion[] = []
   const corruptas: Conversacion[] = []
   for (const c of lista) (motivoCorrupta(c) ? corruptas : validas).push(c)
-  validas.sort((a, b) => {
-    if (!!a.fijada !== !!b.fijada) return a.fijada ? -1 : 1
-    return (b.ultimo_en ?? '').localeCompare(a.ultimo_en ?? '')
-  })
-  return { validas, corruptas }
+  return { validas: ordenarLista(validas), corruptas }
 }
 
 /**
@@ -576,7 +610,17 @@ export function useRealtime(clienteAbierto?: string) {
         { event: 'INSERT', schema: 'public', table: 'mensajes' },
         (payload) => {
           const m = payload.new as Mensaje
-          qc.invalidateQueries({ queryKey: claves.conversaciones })
+          // AQUÍ YA NO SE RECARGA LA LISTA.
+          //
+          // El trigger `tocar_conversacion` (01-esquema-inbox.sql) actualiza
+          // `conversaciones` con cada mensaje que entra —ultimo_texto,
+          // ultimo_en y no_leidos—, y ese UPDATE llega por Realtime al
+          // manejador de más abajo, que parchea la fila. Recargar aquí era
+          // pedir otra vez las mil conversaciones por cada mensaje.
+          //
+          // Comprobado el 8/9/2026 contra la base: `conversaciones` está en
+          // la publicación de Realtime y el evento llega — se cambió un
+          // nombre desde el servidor y el inbox se enteró sin recargar.
           if (m.cliente_id === clienteAbierto) {
             qc.setQueryData<Mensaje[]>(claves.mensajes(m.cliente_id), (v) => {
               const lista = v ?? []
@@ -597,10 +641,44 @@ export function useRealtime(clienteAbierto?: string) {
           )
         },
       )
+      /**
+       * LA FILA SE PARCHEA, NO SE RECARGA LA LISTA ENTERA.
+       *
+       * Era el mayor gasto de egress del inbox: cada mensaje dispara este
+       * evento (por el trigger) y antes cada uno pedía otra vez las mil
+       * conversaciones. El evento YA TRAE la fila nueva, así que no hace
+       * falta preguntar nada.
+       *
+       * TRES COSAS QUE NO PUEDEN FALLAR, y cómo se sostienen:
+       *
+       *  · SE MEZCLA, no se sustituye. El evento trae las columnas de la
+       *    TABLA y no los embeds: sustituir la fila borraría de ella el
+       *    carrito y las etiquetas. Con `{...vieja, ...nueva}` se quedan.
+       *
+       *  · SE VUELVE A ORDENAR. Si no, la conversación que acaba de recibir
+       *    un mensaje no sube al principio: se queda donde estaba con el
+       *    texto nuevo, que es peor que no actualizarla.
+       *
+       *  · SI NO SE PUEDE PARCHEAR, SE RECARGA. Fila que no está en la
+       *    lista (conversación nueva, o que entra ahora en la ventana),
+       *    DELETE, evento sin `id`, o lista todavía sin cargar: se cae al
+       *    invalidate de siempre. El repliegue es EXACTAMENTE el
+       *    comportamiento de antes, así que lo peor que puede pasar es no
+       *    ahorrar — nunca enseñar algo desfasado.
+       */
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'conversaciones' },
-        () => { qc.invalidateQueries({ queryKey: claves.conversaciones }) },
+        (payload) => {
+          const fila = payload.new as Partial<Conversacion> | undefined
+          const lista = qc.getQueryData<Conversacion[]>(claves.conversaciones)
+          const parcheada = payload.eventType === 'DELETE'
+            ? null
+            : parchearConversacion(lista, fila)
+
+          if (!parcheada) { qc.invalidateQueries({ queryKey: claves.conversaciones }); return }
+          qc.setQueryData<Conversacion[]>(claves.conversaciones, parcheada)
+        },
       )
       // Etiquetar desde otro mÃ³vil tiene que verse aquÃ­ sin recargar. Las dos
       // tablas estÃ¡n en la publicaciÃ³n de Realtime (ver el paso 4 del SQL).
