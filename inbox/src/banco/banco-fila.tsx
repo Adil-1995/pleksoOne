@@ -161,6 +161,31 @@ const CASOS: { titulo: string; conv: Conversacion; canal?: Canal; callada?: bool
     canal: MX,
   },
   {
+    // ⚠️ EL CASO QUE HAY QUE MEDIR, y con las condiciones de producción, no
+    // con las cómodas: hora CORTA (26 px, no los 44 de una fecha larga) y
+    // nombre corto. Con la fecha larga la rejilla va ancha y todo cabe
+    // aunque no quepa de verdad — ese fue el error de medición del 6/9.
+    //
+    // LOS TRES A LA VEZ, que es lo que pasa en una incidencia real desde
+    // que María se pausa sola al escalar:
+    //   · carrito AMARILLO   (pedido pendiente)
+    //   · triángulo rojo     (incidencia)
+    //   · BotOff             (canal pausado)
+    //
+    // Si algo se va a quedar sin sitio, se ve aquí. Y lo que NO puede
+    // perderse es el carrito: es la señal de que hay un pedido esperando.
+    titulo: '0c. LOS TRES A LA VEZ, con hora corta: carrito amarillo + incidencia + BotOff',
+    conv: { ...base, cliente_id: '5213318302593', nombre: 'Carmen Escobedo',
+      ultimo_texto: 'ya te mandé mis datos, ¿cuándo llega?',
+      no_leidos: 3,
+      ultimo_en: new Date().toISOString(),
+      escalada_en: new Date().toISOString(),
+      escalada_motivo: 'pregunta por una zona que no está en el catálogo',
+      conversacion_productos: [producto('lucessolares', 'pendiente')] },
+    canal: MX,
+    callada: true,
+  },
+  {
     // El mismo caso de producción pero con el contador de 3 cifras, que es
     // el único que ensancha la rejilla: "99+" mide ~31 px y pasa a ser la
     // celda más ancha por delante de la hora corta (26 px). Aquí se mira

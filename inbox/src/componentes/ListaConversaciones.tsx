@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Star, Pin, BotOff, Bookmark, BookmarkX, Hand } from 'lucide-react'
+import { Star, Pin, BotOff, Bookmark, BookmarkX, AlertTriangle } from 'lucide-react'
 import { useConversaciones, useCanales, usePonerFavorita, usePonerFijada , useConversacionesCorruptas, motivoCorrupta, useMarcas, usePonerMarca } from '@/hooks/datos'
 import { mariaAtiende, distintivo } from '@/lib/canales'
 import { useUI } from '@/store/ui'
@@ -513,17 +513,21 @@ export function Fila({
                 le comería el nombre al cliente en un móvil.
               */}
               {escalada && (
+                // Triángulo de aviso, la misma palabra que la etiqueta roja
+                // que le pone el flujo: quien vea el icono y quien filtre por
+                // «Incidencia» tienen que entender que hablan de lo mismo.
+                //
                 // El title va en el <span> y no en el icono: los de lucide
                 // no lo aceptan como prop y lo tiran sin decir nada.
                 <span
                   title={conv.escalada_motivo
-                    ? 'Escalada: ' + conv.escalada_motivo
-                    : 'Escalada: esperando a una persona'}
+                    ? 'Incidencia: ' + conv.escalada_motivo
+                    : 'Incidencia: esperando a una persona'}
                   className="flex"
                 >
-                  <Hand
+                  <AlertTriangle
                     className="h-3.5 w-3.5 text-alerta"
-                    aria-label="Escalada: esperando a una persona"
+                    aria-label="Incidencia: esperando a una persona"
                   />
                 </span>
               )}
