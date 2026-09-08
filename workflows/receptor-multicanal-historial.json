@@ -2775,7 +2775,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ conversacion_id: $('Interpretar estado').first().json.conversacion_id, producto: $('Preparar pedido').first().json.producto_id, estado: 'pendiente', precio: $('Preparar pedido').first().json.precio_catalogo, cantidad: $('Preparar pedido').first().json.cantidad_num }) }}",
+        "jsonBody": "={{ JSON.stringify({ conversacion_id: $('Interpretar estado').first().json.conversacion_id, producto: $('Preparar pedido').first().json.producto_id, estado: 'pendiente', precio: Number($('Preparar pedido').first().json.precio) > 0 ? Number($('Preparar pedido').first().json.precio) : $('Preparar pedido').first().json.precio_catalogo, cantidad: $('Preparar pedido').first().json.cantidad_num }) }}",
         "options": {}
       },
       "name": "Marcar pedido pendiente",
