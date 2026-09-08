@@ -293,6 +293,25 @@ formatear, así que no llegó ninguno.
   **`recibido` NO existe**: un mensaje entrante se guarda como `entregado`
 
 **Negocio**
+- **Cualquier columna nueva del Sheet entra SOLA en el prompt del modelo.**
+  `Preparar Catálogo` es lista **NEGRA**, no blanca: recorre todas las columnas y
+  solo deja fuera las que están en `EXCLUIDAS` o casan con `PATRONES_INTERNOS`.
+  Se hizo así a propósito —para que añadir «medidas» o «garantía» no obligara a
+  tocar n8n— y este es el precio: una columna interna se cuela como si fuera una
+  característica del producto.
+  Pasó el 8/9/2026 con `TESTING`, que es de enrutado: María llevaba días
+  recibiendo «Testing: SI» y «Testing: NO» en la ficha de cada producto
+  (comprobado en la ejecución 49843). → **Al añadir una columna al Sheet, decide
+  si el modelo tiene que verla; si no, métela en `EXCLUIDAS`.**
+- **`TESTING` marca el PRODUCTO, no el pedido.** Con `TESTING=si`, TODO pedido de
+  ese producto va al grupo «Pedidos MX — TESTING» (`TG_PEDIDOS_CHAT_TESTING`) y
+  su venta NO se le reporta a Meta.
+  ⚠️ **Nunca lo pongas en un producto con anuncios corriendo.** Un cliente real
+  que lo pida acaba en el grupo de pruebas, donde nadie prepara pedidos, y su
+  Purchase no sale: la atribución se pierde para siempre pasados 7 días, porque
+  Meta no admite eventos más viejos. Se deshace volviendo la columna a "no", y
+  las ventas que sigan dentro de los 7 días se recuperan revalidándolas.
+  Solo la cadena "si" cuenta; vacía o ausente es "no", nunca al revés.
 - `palabras_clave` del Sheet = SOLO nombres del producto. Nunca "precio", "info", "cuanto":
   si se repiten en todos los productos, todo empata y no se identifica nada
 - Nunca enumerar el catálogo: si una respuesta menciona 2+ productos, se descarta
