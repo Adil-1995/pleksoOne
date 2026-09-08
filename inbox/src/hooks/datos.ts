@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { ponerBot } from '@/lib/envio'
@@ -29,7 +29,7 @@ export const claves = {
   respuestas: ['respuestas-rapidas'] as const,
 }
 
-// â”€â”€ Canales â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Canales ──────────────────────────────────────────────────────────────
 export function useCanales() {
   return useQuery({
     queryKey: claves.canales,
@@ -48,8 +48,8 @@ export function useCanales() {
   })
 }
 
-/** Alta y ediciÃ³n de canales. Sin optimismo: son pocos y poco frecuentes,
- *  y aquÃ­ importa mÃ¡s ver el error exacto que la instantaneidad. */
+/** Alta y edición de canales. Sin optimismo: son pocos y poco frecuentes,
+ *  y aquí importa más ver el error exacto que la instantaneidad. */
 export function useGestionCanales() {
   const qc = useQueryClient()
   const refrescar = () => {
@@ -65,24 +65,24 @@ export function useGestionCanales() {
   }
 }
 
-// â”€â”€ Conversaciones â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Conversaciones ───────────────────────────────────────────────────────
 /**
- * Fijadas arriba, y dentro de cada grupo por fecha del Ãºltimo mensaje.
+ * Fijadas arriba, y dentro de cada grupo por fecha del último mensaje.
  *
- * Se ordena AQUÃ y no con un `.order('fijada')` en la consulta a propÃ³sito:
- * si `fijada` todavÃ­a no existe (06-fijar-y-marcar.sql sin ejecutar),
- * PostgREST devolverÃ­a 42703 y la lista entera se quedarÃ­a en blanco por una
+ * Se ordena AQU͍ y no con un `.order('fijada')` en la consulta a propósito:
+ * si `fijada` todavía no existe (06-fijar-y-marcar.sql sin ejecutar),
+ * PostgREST devolvería 42703 y la lista entera se quedaría en blanco por una
  * columna opcional. En JavaScript, una columna que no existe es `undefined`,
- * cuenta como no fijada, y no pasa nada. Son 500 filas: ordenarlas aquÃ­ no
+ * cuenta como no fijada, y no pasa nada. Son 500 filas: ordenarlas aquí no
  * se nota.
  */
 /**
- * Por quÃ© una fila NO se puede abrir, o `null` si estÃ¡ sana.
+ * Por qué una fila NO se puede abrir, o `null` si está sana.
  *
- * El hilo se lee por `cliente_id`: sin Ã©l la conversaciÃ³n sale en la lista
+ * El hilo se lee por `cliente_id`: sin él la conversación sale en la lista
  * y al pincharla no pasa nada. Un hilo que no abre es peor que no verlo,
  * porque parece un fallo del inbox y no un dato roto.
- * Sin `canal_id` tampoco se sabe por quÃ© nÃºmero habrÃ­a que contestar.
+ * Sin `canal_id` tampoco se sabe por qué número habría que contestar.
  */
 export function motivoCorrupta(c: Conversacion): string | null {
   if (!String(c.cliente_id ?? '').trim()) return 'sin cliente_id'
@@ -142,13 +142,13 @@ function separar(filas: unknown): { validas: Conversacion[]; corruptas: Conversa
 }
 
 /**
- * Las etiquetas vienen embebidas por PostgREST a travÃ©s de la tabla puente.
- * Igual que con `adjuntos`: si el esquema de etiquetas todavÃ­a no estÃ¡
- * ejecutado, la consulta entera fallarÃ­a y la lista se quedarÃ­a en blanco por
+ * Las etiquetas vienen embebidas por PostgREST a través de la tabla puente.
+ * Igual que con `adjuntos`: si el esquema de etiquetas todavía no está
+ * ejecutado, la consulta entera fallaría y la lista se quedaría en blanco por
  * una tabla opcional. Se intenta con etiquetas y se reintenta sin ellas.
  */
 /**
- * LAS COLUMNAS QUE PINTA LA LISTA, y ninguna mÃ¡s.
+ * LAS COLUMNAS QUE PINTA LA LISTA, y ninguna más.
  *
  * Antes era `select('*')` con los embeds enteros. Medido el 8/9/2026 en gzip,
  * que es lo que cuenta el egress:
@@ -160,10 +160,10 @@ function separar(filas: unknown): { validas: Conversacion[]; corruptas: Conversa
  *
  * Lo caro nunca fueron las filas: era el `*`.
  *
- * Si aÃ±ades un campo a la fila de la lista, AÃ‘ÃDELO AQUÃ. Si no, llega
- * `undefined` y no da error: se pinta vacÃ­o y nadie se entera.
+ * Si añades un campo a la fila de la lista, AÑÁDELO AQU͍. Si no, llega
+ * `undefined` y no da error: se pinta vacío y nadie se entera.
  *
- * Lo que NO se trae a propÃ³sito, porque no lo lee nadie (comprobado con grep
+ * Lo que NO se trae a propósito, porque no lo lee nadie (comprobado con grep
  * sobre `src/`): telefono, ctwa_clid, ad_id, creado, bloqueada_en,
  * bloqueo_nota y escalada_vista_por.
  */
@@ -192,12 +192,12 @@ const SELECT_LISTA =
   ',etiquetas(id,nombre,color,orden),conversacion_productos(producto,estado,actualizado)'
 
 /**
- * CuÃ¡ntas conversaciones recientes se traen de una vez.
+ * Cuántas conversaciones recientes se traen de una vez.
  *
- * 1000 Y NO MÃS, porque no se puede: PostgREST corta en 1000 filas y da
- * igual lo que pidas â€” sin `limit`, con `limit=5000` o con `Range: 0-4999`
+ * 1000 Y NO MÁS, porque no se puede: PostgREST corta en 1000 filas y da
+ * igual lo que pidas — sin `limit`, con `limit=5000` o con `Range: 0-4999`
  * devuelve 1000 exactas. Traer las 4016 obliga a paginar de mil en mil, y
- * eso son 5 peticiones y 325 KB por recarga, mÃ¡s del doble que hoy.
+ * eso son 5 peticiones y 325 KB por recarga, más del doble que hoy.
  */
 const VENTANA = 1000
 
@@ -205,18 +205,18 @@ const VENTANA = 1000
  * LO QUE NO PUEDE QUEDARSE FUERA POR VIEJO.
  *
  * La ventana ordena por fecha, y eso esconde justo lo que hay que atender:
- * el 8/9/2026 el corte de 1000 caÃ­a en el 5/9, y de los 7 pedidos PENDIENTES
- * solo entraba UNO. Los otros seis eran de agosto â€” el que mÃ¡s tiempo lleva
- * esperando es, por definiciÃ³n, el que mÃ¡s lejos estÃ¡ del corte.
+ * el 8/9/2026 el corte de 1000 caía en el 5/9, y de los 7 pedidos PENDIENTES
+ * solo entraba UNO. Los otros seis eran de agosto — el que más tiempo lleva
+ * esperando es, por definición, el que más lejos está del corte.
  *
- * AsÃ­ que ademÃ¡s de la ventana se piden SIEMPRE, sin lÃ­mite de fecha, las
+ * Así que además de la ventana se piden SIEMPRE, sin límite de fecha, las
  * conversaciones que tienen trabajo pendiente: carrito (pendiente o
  * validado), incidencia abierta, estrella o chincheta. El 8/9 eran 161 + 8,
  * unos 15 KB. Con eso el carrito, el badge de incidencias, favoritos y
- * fijados dejan de mentir, cueste lo que cueste la antigÃ¼edad.
+ * fijados dejan de mentir, cueste lo que cueste la antigüedad.
  *
- * Lo que sigue dependiendo de la ventana es encontrar una conversaciÃ³n
- * VIEJA sin nada pendiente. Para eso estÃ¡ el buscador, que pregunta al
+ * Lo que sigue dependiendo de la ventana es encontrar una conversación
+ * VIEJA sin nada pendiente. Para eso está el buscador, que pregunta al
  * servidor y no mira solo lo cargado.
  */
 async function idsConTrabajo(): Promise<number[]> {
@@ -263,9 +263,9 @@ export function useConversaciones() {
       const filas = [...((ventana.data ?? []) as unknown as Record<string, unknown>[])]
       const dentro = new Set(filas.map((f) => f.id as number))
 
-      // La cola: lo que tiene trabajo pendiente y se quedÃ³ fuera por viejo.
-      // Si esto falla NO se rompe la lista â€”lo que ya hay es correcto, solo
-      // que incompletoâ€”, pero se deja dicho en la consola: una lista que
+      // La cola: lo que tiene trabajo pendiente y se quedó fuera por viejo.
+      // Si esto falla NO se rompe la lista —lo que ya hay es correcto, solo
+      // que incompleto—, pero se deja dicho en la consola: una lista que
       // miente en silencio es lo que este bloque viene a arreglar.
       try {
         const conCarrito = (await idsConTrabajo()).filter((id) => !dentro.has(id))
@@ -291,7 +291,7 @@ export function useConversaciones() {
   })
 }
 
-/** Las filas apartadas por no poder abrirse. VacÃ­o es lo normal. */
+/** Las filas apartadas por no poder abrirse. Vacío es lo normal. */
 export function useConversacionesCorruptas(): Conversacion[] {
   const { data } = useQuery<Conversacion[]>({
     queryKey: claves.conversacionesCorruptas,
@@ -301,11 +301,11 @@ export function useConversacionesCorruptas(): Conversacion[] {
   return data ?? []
 }
 
-// â”€â”€ Marca de Â«revisado hasta aquÃ­Â» â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Marca de «revisado hasta aquí» ───────────────────────────────────────
 /**
- * Las marcas puestas ahora mismo, indexadas por conversaciÃ³n.
+ * Las marcas puestas ahora mismo, indexadas por conversación.
  *
- * Un Map y no un array porque la lista pregunta Â«Â¿estÃ¡ marcada esta fila?Â»
+ * Un Map y no un array porque la lista pregunta «¿está marcada esta fila?»
  * 341 veces por pintado. Son como mucho dos entradas.
  */
 export function useMarcas() {
@@ -325,9 +325,9 @@ export function useMarcas() {
  * Poner o quitar la marca. Optimista, como todo lo que se toca con el dedo.
  *
  * El optimismo tiene que reproducir la regla de la base: al marcar una
- * conversaciÃ³n se quitan de la cachÃ© las marcas de ESE canal antes de meter
- * la nueva. Si solo se aÃ±adiera, durante el vuelo se verÃ­an dos rayas
- * amarillas y el usuario pensarÃ­a que la regla no funciona â€” cuando en la
+ * conversación se quitan de la caché las marcas de ESE canal antes de meter
+ * la nueva. Si solo se añadiera, durante el vuelo se verían dos rayas
+ * amarillas y el usuario pensaría que la regla no funciona — cuando en la
  * base nunca ha llegado a haber dos.
  */
 export function usePonerMarca() {
@@ -356,7 +356,7 @@ export function usePonerMarca() {
   })
 }
 
-// â”€â”€ Etiquetas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Etiquetas ────────────────────────────────────────────────────────────
 export function useEtiquetas() {
   return useQuery({
     queryKey: claves.etiquetas,
@@ -374,11 +374,11 @@ export function useContarEtiquetas() {
 }
 
 /**
- * Cambios optimistas sobre UNA conversaciÃ³n de la lista.
+ * Cambios optimistas sobre UNA conversación de la lista.
  *
- * Se comparte entre la estrella y el silenciar porque el patrÃ³n es idÃ©ntico:
+ * Se comparte entre la estrella y el silenciar porque el patrón es idéntico:
  * pintar ya, revertir si el servidor dice que no. Con `cancelQueries` antes de
- * tocar la cachÃ© para que un refetch en vuelo no pise el cambio.
+ * tocar la caché para que un refetch en vuelo no pise el cambio.
  */
 function useCampoConversacion<T>(
   aplicar: (clienteId: string, valor: T) => Promise<void>,
@@ -416,12 +416,12 @@ export function usePonerFijada() {
 }
 
 /**
- * Dar por resuelto el escalado. Mismo patrÃ³n optimista que la estrella.
+ * Dar por resuelto el escalado. Mismo patrón optimista que la estrella.
  *
  * El `valor` que se le pasa es la fecha con la que se PINTA mientras el
  * servidor contesta; la que se guarda de verdad la pone el trigger. Es una
- * diferencia sin consecuencias â€”solo se comparan entre ellas y las dos son
- * de hace un instanteâ€” y el refetch de `onSettled` deja la buena.
+ * diferencia sin consecuencias —solo se comparan entre ellas y las dos son
+ * de hace un instante— y el refetch de `onSettled` deja la buena.
  */
 export function useResolverEscalado() {
   return useCampoConversacion<string>(
@@ -476,7 +476,7 @@ export function useMarcarProducto() {
   })
 }
 
-/** Poner o quitar una etiqueta de una conversaciÃ³n, tambiÃ©n optimista. */
+/** Poner o quitar una etiqueta de una conversación, también optimista. */
 export function useEtiquetarConversacion() {
   const qc = useQueryClient()
   return useMutation({
@@ -512,7 +512,7 @@ export function useEtiquetarConversacion() {
 }
 
 /** Crear, renombrar, recolorear y borrar. Sin optimismo: son poco frecuentes
- *  y aquÃ­ sÃ­ importa mÃ¡s ver el error exacto que la instantaneidad. */
+ *  y aquí sí importa más ver el error exacto que la instantaneidad. */
 export function useGestionEtiquetas() {
   const qc = useQueryClient()
   const refrescar = () => {
@@ -537,11 +537,11 @@ export function useGestionEtiquetas() {
   }
 }
 
-// â”€â”€ Mensajes de un hilo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Mensajes de un hilo ──────────────────────────────────────────────────
 /**
- * La tabla `adjuntos` es de la Fase 4 y puede no existir todavÃ­a.
- * Si no estÃ¡, PostgREST devuelve PGRST200 ("no relationship found") y la
- * consulta entera falla â€” el hilo se queda en blanco por una tabla opcional.
+ * La tabla `adjuntos` es de la Fase 4 y puede no existir todavía.
+ * Si no está, PostgREST devuelve PGRST200 ("no relationship found") y la
+ * consulta entera falla — el hilo se queda en blanco por una tabla opcional.
  * Se intenta con adjuntos y se reintenta sin ellos.
  */
 export function useMensajes(clienteId: string | undefined) {
@@ -558,7 +558,7 @@ export function useMensajes(clienteId: string | undefined) {
 
       if (!conAdjuntos.error) return (conAdjuntos.data ?? []) as unknown as Mensaje[]
 
-      // Solo caemos al plan B si el fallo es exactamente ese: la tabla no estÃ¡.
+      // Solo caemos al plan B si el fallo es exactamente ese: la tabla no está.
       const esRelacionAusente =
         conAdjuntos.error.code === 'PGRST200' ||
         conAdjuntos.error.code === 'PGRST205' ||
@@ -580,7 +580,7 @@ export function useMensajes(clienteId: string | undefined) {
   })
 }
 
-// â”€â”€ Pausar / reactivar el bot â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Pausar / reactivar el bot ────────────────────────────────────────────
 export function usePonerBot() {
   const qc = useQueryClient()
   return useMutation({
@@ -603,13 +603,13 @@ export function usePonerBot() {
   })
 }
 
-// â”€â”€ Realtime â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Realtime ─────────────────────────────────────────────────────────────
 /**
- * Una sola suscripciÃ³n para toda la app.
+ * Una sola suscripción para toda la app.
  *
  * Al llegar un mensaje nuevo se refresca la lista (el trigger de Postgres ya
- * ha puesto al dÃ­a ultimo_texto y no_leidos, asÃ­ que la conversaciÃ³n sube
- * sola al principio) y, si es del hilo abierto, se aÃ±ade sin recargar.
+ * ha puesto al día ultimo_texto y no_leidos, así que la conversación sube
+ * sola al principio) y, si es del hilo abierto, se añade sin recargar.
  */
 export function useRealtime(clienteAbierto?: string) {
   const qc = useQueryClient()
@@ -636,7 +636,7 @@ export function useRealtime(clienteAbierto?: string) {
           if (m.cliente_id === clienteAbierto) {
             qc.setQueryData<Mensaje[]>(claves.mensajes(m.cliente_id), (v) => {
               const lista = v ?? []
-              if (lista.some((x) => x.id === m.id)) return lista   // Meta reenvÃ­a: no duplicar
+              if (lista.some((x) => x.id === m.id)) return lista   // Meta reenvía: no duplicar
               return [...lista, m]
             })
           }
@@ -646,7 +646,7 @@ export function useRealtime(clienteAbierto?: string) {
         'postgres_changes',
         { event: 'UPDATE', schema: 'public', table: 'mensajes' },
         (payload) => {
-          // Cambios de estado: enviado -> entregado -> leÃ­do
+          // Cambios de estado: enviado -> entregado -> leído
           const m = payload.new as Mensaje
           qc.setQueryData<Mensaje[]>(claves.mensajes(m.cliente_id), (v) =>
             (v ?? []).map((x) => (x.id === m.id ? { ...x, ...m } : x)),
@@ -692,8 +692,8 @@ export function useRealtime(clienteAbierto?: string) {
           qc.setQueryData<Conversacion[]>(claves.conversaciones, parcheada)
         },
       )
-      // Etiquetar desde otro mÃ³vil tiene que verse aquÃ­ sin recargar. Las dos
-      // tablas estÃ¡n en la publicaciÃ³n de Realtime (ver el paso 4 del SQL).
+      // Etiquetar desde otro móvil tiene que verse aquí sin recargar. Las dos
+      // tablas están en la publicación de Realtime (ver el paso 4 del SQL).
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'etiquetas' },
@@ -707,17 +707,17 @@ export function useRealtime(clienteAbierto?: string) {
         { event: '*', schema: 'public', table: 'canales' },
         () => { qc.invalidateQueries({ queryKey: claves.canales }) },
       )
-      // Las respuestas rÃ¡pidas, por lo mismo que las etiquetas: si creas una
-      // en el PC y el mÃ³vil no se entera hasta recargar, escribes Â«/envioÂ» en
-      // el mÃ³vil y el desplegable sale vacÃ­o.
+      // Las respuestas rápidas, por lo mismo que las etiquetas: si creas una
+      // en el PC y el móvil no se entera hasta recargar, escribes «/envio» en
+      // el móvil y el desplegable sale vacío.
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'respuestas_rapidas' },
         () => { qc.invalidateQueries({ queryKey: claves.respuestas }) },
       )
-      // La marca de Â«revisado hasta aquÃ­Â» es de las que MÃS falta hacen
-      // aquÃ­: se pidiÃ³ para verla igual desde el mÃ³vil y desde el PC, y sin
-      // esto marcar en uno dejarÃ­a la raya vieja pintada en el otro. Dos
+      // La marca de «revisado hasta aquí» es de las que MÁS falta hacen
+      // aquí: se pidió para verla igual desde el móvil y desde el PC, y sin
+      // esto marcar en uno dejaría la raya vieja pintada en el otro. Dos
       // rayas amarillas a la vez y la marca deja de ser de fiar.
       .on(
         'postgres_changes',
@@ -725,7 +725,7 @@ export function useRealtime(clienteAbierto?: string) {
         () => { qc.invalidateQueries({ queryKey: claves.marcas }) },
       )
       // Los productos los escribe n8n, no esta app: sin Realtime, un pedido
-      // reciÃ©n registrado no se verÃ­a aquÃ­ hasta recargar.
+      // recién registrado no se vería aquí hasta recargar.
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'conversacion_productos' },
@@ -758,11 +758,11 @@ export function useRealtime(clienteAbierto?: string) {
   }, [qc, clienteAbierto])
 }
 
-// â”€â”€ Respuestas rÃ¡pidas â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Respuestas rápidas ───────────────────────────────────────────────────
 /**
  * La lista entera, cargada de una vez. Son decenas de filas y el filtrado del
  * desplegable se hace en memoria mientras escribes: pedirle a Supabase una
- * consulta por cada tecla serÃ­a mÃ¡s lento y ademÃ¡s parpadearÃ­a.
+ * consulta por cada tecla sería más lento y además parpadearía.
  */
 export function useRespuestas() {
   return useQuery({
@@ -773,9 +773,9 @@ export function useRespuestas() {
 }
 
 /**
- * Alta, ediciÃ³n y borrado. Sin optimismo, igual que los canales: son pocas y
- * poco frecuentes, y aquÃ­ importa mÃ¡s ver el error exacto â€”un atajo repetido,
- * por ejemploâ€” que la instantaneidad.
+ * Alta, edición y borrado. Sin optimismo, igual que los canales: son pocas y
+ * poco frecuentes, y aquí importa más ver el error exacto —un atajo repetido,
+ * por ejemplo— que la instantaneidad.
  */
 export function useGestionRespuestas() {
   const qc = useQueryClient()
@@ -792,9 +792,9 @@ export function useGestionRespuestas() {
         editarRespuesta(id, cambios),
       onSuccess: refrescar,
     }),
-    // El borrado se lleva por delante tambiÃ©n el fichero del Storage. Sin
-    // esto, cada respuesta con imagen que se borrase dejarÃ­a el fichero ahÃ­
-    // para siempre, sin fila que lo nombre y sin forma de saber cuÃ¡l era.
+    // El borrado se lleva por delante también el fichero del Storage. Sin
+    // esto, cada respuesta con imagen que se borrase dejaría el fichero ahí
+    // para siempre, sin fila que lo nombre y sin forma de saber cuál era.
     borrar: useMutation({
       mutationFn: ({ id, imagenPath }: { id: number; imagenPath?: string | null }) =>
         borrarRespuesta(id, imagenPath),

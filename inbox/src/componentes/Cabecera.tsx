@@ -1,4 +1,4 @@
-﻿import { ArrowLeft, Clock3, AlertTriangle, Ban, BellOff, Pin, Bot, BotOff } from 'lucide-react'
+import { ArrowLeft, Clock3, AlertTriangle, Ban, BellOff, Pin, Bot, BotOff } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { usePonerBot, usePonerSilenciada, useEtiquetarConversacion, useResolverEscalado } from '@/hooks/datos'
 import { capacidadesDe, estadoVentana } from '@/lib/canales'
@@ -9,14 +9,14 @@ import { pintaEstado } from './EstadoConv'
 import { MenuConversacion } from './MenuConversacion'
 
 /**
- * Cabecera del hilo: quiÃ©n es el cliente a la izquierda, y los tres puntos a
+ * Cabecera del hilo: quién es el cliente a la izquierda, y los tres puntos a
  * la derecha con todas las acciones dentro.
  *
- * La ÃšNICA acciÃ³n suelta es la pausa, y estÃ¡ fuera del menÃº a propÃ³sito:
- * es el control de seguridad del inbox y callar a MarÃ­a cuando se equivoca
+ * La ÚNICA acción suelta es la pausa, y está fuera del menú a propósito:
+ * es el control de seguridad del inbox y callar a María cuando se equivoca
  * con un cliente real no puede costar dos toques. El aro del avatar y la
- * franja de color de debajo repiten el estado, y la franja lleva ademÃ¡s su
- * propio botÃ³n para deshacerlo.
+ * franja de color de debajo repiten el estado, y la franja lleva además su
+ * propio botón para deshacerlo.
  */
 export function Cabecera({
   conv, canal,
@@ -38,18 +38,18 @@ export function Cabecera({
   const etiquetas = conv.etiquetas ?? []
   const activo = conv.bot_activo
 
-  // Silenciada o bloqueada, la pausa no pinta nada: MarÃ­a ya estÃ¡ callada
-  // por otro motivo y el botÃ³n solo confundirÃ­a.
+  // Silenciada o bloqueada, la pausa no pinta nada: María ya está callada
+  // por otro motivo y el botón solo confundiría.
   const pausaUtil = estado === 'atendiendo' || estado === 'pausada'
 
   return (
     <div className="shrink-0 border-b border-borde bg-panel">
       {/*
-        IZQUIERDA identidad, DERECHA pausa y tres puntos. Nada mÃ¡s.
+        IZQUIERDA identidad, DERECHA pausa y tres puntos. Nada más.
 
-        Antes habÃ­a seis iconos sueltos: 226 px que en un mÃ³vil de 375
-        dejaban el nombre en dos letras. Ahora solo queda uno fuera â€”la
-        pausaâ€” y el resto vive en el menÃº con su etiqueta escrita.
+        Antes había seis iconos sueltos: 226 px que en un móvil de 375
+        dejaban el nombre en dos letras. Ahora solo queda uno fuera —la
+        pausa— y el resto vive en el menú con su etiqueta escrita.
       */}
       <div className="flex items-center gap-3 px-3 py-2.5">
         <button
@@ -61,7 +61,7 @@ export function Cabecera({
         </button>
 
         {/* Anillo alrededor del avatar: el color lo decide el estado, no
-            bot_activo a secas, asÃ­ que una bloqueada nunca sale en verde. */}
+            bot_activo a secas, así que una bloqueada nunca sale en verde. */}
         <div
           className={[
             'relative flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white ring-2 ring-offset-2 ring-offset-panel',
@@ -79,15 +79,15 @@ export function Cabecera({
         </div>
 
         {/*
-          EL NÃšMERO arriba y el nombre debajo, no al revÃ©s.
+          EL NÚMERO arriba y el nombre debajo, no al revés.
 
           El de arriba es el identificador: es lo que se copia para el `curl`
           de la pausa, lo que hay que comparar con el aviso de Telegram y lo
-          Ãºnico que no cambia (regla 3). El nombre de WhatsApp lo edita el
-          cliente cuando quiere, asÃ­ que baja a la lÃ­nea de contexto junto al
-          canal â€” sigue estando, pero deja de mandar.
+          único que no cambia (regla 3). El nombre de WhatsApp lo edita el
+          cliente cuando quiere, así que baja a la línea de contexto junto al
+          canal — sigue estando, pero deja de mandar.
 
-          El `title` lleva el nÃºmero CRUDO, sin agrupar: es el que se pega.
+          El `title` lleva el número CRUDO, sin agrupar: es el que se pega.
         */}
         <div className="min-w-0 flex-1 basis-40">
           <div className="flex items-center gap-1.5">
@@ -100,7 +100,7 @@ export function Cabecera({
             {conv.nombre && (
               <>
                 {conv.nombre}
-                <span className="mx-1.5 opacity-40">Â·</span>
+                <span className="mx-1.5 opacity-40">·</span>
               </>
             )}
             {cap.nombre}
@@ -111,13 +111,13 @@ export function Cabecera({
           {/*
             LA PAUSA, suelta y a un toque.
 
-            Es el Ãºnico icono que sale del menÃº, y sale porque es el control
-            de seguridad del inbox: cuando MarÃ­a se equivoca con un cliente
-            real, callarla no puede costar dos toques. Todo lo demÃ¡s se
+            Es el único icono que sale del menú, y sale porque es el control
+            de seguridad del inbox: cuando María se equivoca con un cliente
+            real, callarla no puede costar dos toques. Todo lo demás se
             queda dentro.
 
-            Desaparece si estÃ¡ silenciada o bloqueada: ahÃ­ MarÃ­a ya estÃ¡
-            callada por otro motivo y el botÃ³n solo confundirÃ­a.
+            Desaparece si está silenciada o bloqueada: ahí María ya está
+            callada por otro motivo y el botón solo confundiría.
           */}
           {pausaUtil && (
             <button
@@ -129,11 +129,11 @@ export function Cabecera({
                   ? 'text-acento hover:bg-acento/15'
                   : 'bg-alerta/15 text-alerta hover:bg-alerta/25',
               ].join(' ')}
-              aria-label={activo ? 'Pausar a MarÃ­a' : 'Devolver la conversaciÃ³n a MarÃ­a'}
+              aria-label={activo ? 'Pausar a María' : 'Devolver la conversación a María'}
               aria-pressed={!activo}
               title={activo
-                ? 'MarÃ­a atiende. Pulsa para pausarla y atender tÃº'
-                : 'Pausado: respondes tÃº. Pulsa para devolvÃ©rsela a MarÃ­a'}
+                ? 'María atiende. Pulsa para pausarla y atender tú'
+                : 'Pausado: respondes tú. Pulsa para devolvérsela a María'}
             >
               {activo ? <Bot className="h-5 w-5" /> : <BotOff className="h-5 w-5" />}
             </button>
@@ -155,37 +155,37 @@ export function Cabecera({
               title={'Quitar la etiqueta ' + e.nombre}
             >
               {e.nombre}
-              <span className="ml-1 opacity-0 transition-opacity group-hover:opacity-70">Ã—</span>
+              <span className="ml-1 opacity-0 transition-opacity group-hover:opacity-70">×</span>
             </button>
           ))}
         </div>
       )}
 
-      {/* â”€â”€ Avisos de estado. No pueden pasar desapercibidos. â”€â”€ */}
+      {/* ── Avisos de estado. No pueden pasar desapercibidos. ── */}
 
       {/*
         EL ESCALADO VA EL PRIMERO de los avisos, por encima de bloqueada y
-        de pausada. Los demÃ¡s describen una situaciÃ³n estable que alguien
-        eligiÃ³; este dice que hay un cliente esperando AHORA y que MarÃ­a ya
+        de pausada. Los demás describen una situación estable que alguien
+        eligió; este dice que hay un cliente esperando AHORA y que María ya
         no va a contestarle.
 
-        Y aquÃ­ estÃ¡ el botÃ³n de darlo por resuelto, que es el Ãºnico que hay
-        en toda la app. No estÃ¡ en la fila de la lista a propÃ³sito: apagar
+        Y aquí está el botón de darlo por resuelto, que es el único que hay
+        en toda la app. No está en la fila de la lista a propósito: apagar
         la alarma desde la lista es un dedo torpe rozando la pantalla al
-        hacer scroll. Para quitarla hay que haber ABIERTO la conversaciÃ³n,
+        hacer scroll. Para quitarla hay que haber ABIERTO la conversación,
         que es exactamente lo que se quiere que pases a hacer.
 
-        El motivo se enseÃ±a entero, sin recortar: es lo que hace falta para
-        decidir si esto lo contestas tÃº en diez segundos o hay que buscar
+        El motivo se enseña entero, sin recortar: es lo que hace falta para
+        decidir si esto lo contestas tú en diez segundos o hay que buscar
         el dato. Cabe porque ya viene limitado a 300 caracteres desde n8n.
       */}
       {escaladaAbierta(conv) && (
         <div className="flex items-start gap-2 bg-alerta/15 px-4 py-1.5 text-xs text-alerta">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <span className="min-w-0 flex-1">
-            <strong className="font-semibold">MarÃ­a escalÃ³ y se callÃ³</strong>
-            <span className="opacity-70"> Â· {horaLista(conv.escalada_en)}</span>
-            {conv.escalada_motivo && <> â€” {conv.escalada_motivo}</>}
+            <strong className="font-semibold">María escaló y se calló</strong>
+            <span className="opacity-70"> · {horaLista(conv.escalada_en)}</span>
+            {conv.escalada_motivo && <> — {conv.escalada_motivo}</>}
           </span>
           <button
             onClick={() => resolver.mutate({
@@ -194,7 +194,7 @@ export function Cabecera({
             })}
             disabled={resolver.isPending}
             className="shrink-0 font-medium underline hover:no-underline disabled:opacity-50"
-            title="Quitar el aviso. Si MarÃ­a vuelve a escalar, reaparece solo."
+            title="Quitar el aviso. Si María vuelve a escalar, reaparece solo."
           >
             Resuelto
           </button>
@@ -210,7 +210,7 @@ export function Cabecera({
       {estado === 'silenciada' && (
         <div className="flex items-center gap-2 bg-aviso/10 px-4 py-1.5 text-xs text-aviso">
           <BellOff className="h-3.5 w-3.5 shrink-0" />
-          Silenciada: los mensajes se guardan, pero MarÃ­a no responde y no salta ningÃºn aviso.
+          Silenciada: los mensajes se guardan, pero María no responde y no salta ningún aviso.
           <button
             onClick={() => silenciada.mutate({ clienteId: conv.cliente_id, valor: false })}
             className="ml-1 underline hover:no-underline"
@@ -219,19 +219,19 @@ export function Cabecera({
           </button>
         </div>
       )}
-      {/* El botÃ³n de arriba ya lo deshace, pero esta franja es la que se ve
-          sin buscar: quien llega a la conversaciÃ³n y ve el aviso tiene la
-          salida ahÃ­ mismo, sin tener que localizar el icono. */}
+      {/* El botón de arriba ya lo deshace, pero esta franja es la que se ve
+          sin buscar: quien llega a la conversación y ve el aviso tiene la
+          salida ahí mismo, sin tener que localizar el icono. */}
       {estado === 'pausada' && (
         <div className="flex items-center gap-2 bg-alerta/10 px-4 py-1.5 text-xs text-alerta">
           <BotOff className="h-3.5 w-3.5 shrink-0" />
-          <span className="min-w-0 flex-1">MarÃ­a estÃ¡ pausada en esta conversaciÃ³n. Respondes tÃº.</span>
+          <span className="min-w-0 flex-1">María está pausada en esta conversación. Respondes tú.</span>
           <button
             onClick={() => poner.mutate({ clienteId: conv.cliente_id, activo: true })}
             disabled={poner.isPending}
             className="shrink-0 font-medium underline hover:no-underline disabled:opacity-50"
           >
-            DevolvÃ©rsela
+            Devolvérsela
           </button>
         </div>
       )}
