@@ -1,4 +1,7 @@
-import { useRef, useState, type ChangeEvent, type ClipboardEvent, type KeyboardEvent } from 'react'
+import {
+  useEffect, useRef, useState,
+  type ChangeEvent, type ClipboardEvent, type KeyboardEvent,
+} from 'react'
 import { Send, Paperclip, X, Loader2, AlertTriangle, Ban } from 'lucide-react'
 import { enviar, subirMedia, subirMiniatura, ponerBot } from '@/lib/envio'
 import {
@@ -18,6 +21,48 @@ import { insertarEmoji } from '@/lib/emojis'
 import { ficheroDeRespuesta } from '@/lib/respuestas'
 import type { Conversacion, Canal, MensajeOptimista, RespuestaRapida } from '@/tipos'
 
+/**
+ * HASTA DÓNDE CRECE EL CAMPO, en píxeles.
+ *
+ * SEIS LÍNEAS, que es lo que deja WhatsApp. Medido en el navegador con el
+ * campo real: la primera ocupa 44 px y cada una más suma 24, así que seis son
+ * 44 + 24×5 = 164; con 168 entran holgadas y la séptima ya no.
+ *
+ * Estaba en 128 y solo cabían CUATRO. A partir del tope deja de crecer y hace
+ * scroll dentro: si siguiera creciendo, un mensaje largo se comería la
+ * conversación que estás intentando contestar.
+ *
+ * El tope vive AQUÍ y no en una clase de Tailwind. Estaba en las dos —`max-h-32`
+ * en el className y la medida en el JS— y dos sitios que tienen que decir lo
+ * mismo acaban diciendo cosas distintas.
+ */
+const ALTO_MAXIMO = 168
+
+/**
+ * El campo crece con lo que escribes, como en WhatsApp.
+ *
+ * Un `textarea` no lo hace solo: con `rows={1}` se queda a una línea para
+ * siempre y el texto se desplaza por dentro, así que a la tercera línea ya no
+ * ves lo que has escrito. Hay que medir y poner la altura a mano.
+ *
+ * EL ORDEN IMPORTA, y es donde falla si se toca:
+ *
+ *   1. `overflow: hidden` ANTES de medir. Con la barra puesta, el ancho útil
+ *      cambia, el texto se reparte distinto y `scrollHeight` sale mal.
+ *   2. `height: auto` ANTES de medir. `scrollHeight` nunca baja por su cuenta:
+ *      sin esto el campo crece y no vuelve a encoger al borrar.
+ *   3. Se mide, y solo DESPUÉS se recorta al tope.
+ */
+function ajustarAlto(el: HTMLTextAreaElement | null) {
+  if (!el) return
+  el.style.overflowY = 'hidden'
+  el.style.height = 'auto'
+  const natural = el.scrollHeight
+  el.style.height = Math.min(natural, ALTO_MAXIMO) + 'px'
+  // La barra solo cuando hace falta de verdad.
+  el.style.overflowY = natural > ALTO_MAXIMO ? 'auto' : 'hidden'
+}
+
 export function Redactor({ conv, canal }: { conv: Conversacion; canal: Canal | undefined }) {
   const [texto, setTexto] = useState('')
   const [adjunto, setAdjunto] = useState<File | null>(null)
@@ -36,6 +81,21 @@ export function Redactor({ conv, canal }: { conv: Conversacion; canal: Canal | u
   const [cargandoImagen, setCargandoImagen] = useState(false)
   const ficheroRef = useRef<HTMLInputElement>(null)
   const campoRef = useRef<HTMLTextAreaElement>(null)
+
+  // Se reajusta con CADA cambio del texto, y por eso va sobre el estado y no
+  // en el `onChange`: así también recoge lo que no teclea nadie —una
+  // respuesta rápida insertada, un emoji, y el vaciado al enviar, que es el
+  // que devuelve el campo a una línea.
+  useEffect(() => { ajustarAlto(campoRef.current) }, [texto])
+
+  // Y al cambiar el ancho: el mismo texto ocupa más líneas en una ventana
+  // estrecha. Sin esto, girar el móvil deja el campo con la altura de antes,
+  // o cortado o con un hueco debajo.
+  useEffect(() => {
+    const al = () => ajustarAlto(campoRef.current)
+    window.addEventListener('resize', al)
+    return () => window.removeEventListener('resize', al)
+  }, [])
   const qc = useQueryClient()
   const { anadirOptimista, marcarFallo, quitarOptimista } = useUI()
 
@@ -413,7 +473,7 @@ export function Redactor({ conv, canal }: { conv: Conversacion; canal: Canal | u
           // La pista del «/» va aquí porque si no, nadie descubre que existe:
           // no hay ningún botón que lo enseñe.
           placeholder="Escribe un mensaje  ·  / para respuestas rápidas"
-          className="max-h-32 min-h-[42px] flex-1 resize-none rounded-2xl bg-panel2 px-4 py-2.5 outline-none placeholder:text-texto2"
+          className="min-h-[42px] flex-1 resize-none rounded-2xl bg-panel2 px-4 py-2.5 outline-none placeholder:text-texto2"
         />
 
         <button

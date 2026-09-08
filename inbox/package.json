@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
-    "prueba": "node pruebas/gesto-y-formato.mjs && node pruebas/comandos-de-barra.mjs && node pruebas/anuncio-y-emojis.mjs && node pruebas/marcado.mjs && node pruebas/escalado.mjs && node pruebas/orden-barra.mjs && node pruebas/parcheo-lista.mjs && node pruebas/campos-que-faltan.mjs && node pruebas/rescate-conversacion.mjs"
+    "prueba": "node pruebas/gesto-y-formato.mjs && node pruebas/comandos-de-barra.mjs && node pruebas/anuncio-y-emojis.mjs && node pruebas/marcado.mjs && node pruebas/escalado.mjs && node pruebas/orden-barra.mjs && node pruebas/parcheo-lista.mjs && node pruebas/campos-que-faltan.mjs && node pruebas/rescate-conversacion.mjs && node pruebas/alto-del-campo.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
