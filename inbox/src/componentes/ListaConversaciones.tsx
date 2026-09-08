@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Star, Pin, BotOff, Bookmark, BookmarkX, AlertTriangle } from 'lucide-react'
@@ -10,15 +10,17 @@ import { productosDe, nombreProducto } from '@/lib/productos'
 import { horaLista, iniciales, colorAvatar, resumen, telefonoLegible } from '@/lib/formato'
 import { EsqueletoLista, Vacio } from './Esqueletos'
 import { FiltrosLista, aplicarFiltros } from './FiltrosLista'
+import { ResultadosMensajes } from './ResultadosMensajes'
+import { MINIMO_BUSQUEDA } from '@/hooks/useBuscarMensajes'
 import { IconoEstado } from './EstadoConv'
 import { CarritoPedido } from './CarritoPedido'
 import { escaladaAbierta, type Conversacion, type Canal } from '@/tipos'
 
 const TITULO_VACIO: Record<string, string> = {
-  bandeja: 'Todavía no hay conversaciones',
-  favoritas: 'Ninguna conversación marcada',
-  silenciadas: 'Ninguna conversación silenciada',
-  bloqueadas: 'Ningún cliente bloqueado',
+  bandeja: 'TodavÃ­a no hay conversaciones',
+  favoritas: 'Ninguna conversaciÃ³n marcada',
+  silenciadas: 'Ninguna conversaciÃ³n silenciada',
+  bloqueadas: 'NingÃºn cliente bloqueado',
 }
 
 export function ListaConversaciones() {
@@ -37,8 +39,8 @@ export function ListaConversaciones() {
   const saltarAjuste = useRef(false)
   const yaRestaurado = useRef(false)
 
-  // Con "Todos" hay que poder distinguir de qué número es cada
-  // conversación; con un canal elegido, esa etiqueta sería ruido idéntico
+  // Con "Todos" hay que poder distinguir de quÃ© nÃºmero es cada
+  // conversaciÃ³n; con un canal elegido, esa etiqueta serÃ­a ruido idÃ©ntico
   // en las 183 filas.
   const mezclando = canalFiltro === null
   const porCanal = useMemo(() => {
@@ -59,33 +61,33 @@ export function ListaConversaciones() {
     estimateSize: () => 76,
     overscan: 8,
     // Las filas NO miden todas lo mismo: una con producto y etiquetas ocupa
-    // tres líneas y una sin nada, dos. Con la altura fija en 76 px, las de
-    // tres se salían de su hueco y se comían la de abajo — eso era el
-    // "se amontonan", y el separador solo lo disimulaba. Midiéndolas de
+    // tres lÃ­neas y una sin nada, dos. Con la altura fija en 76 px, las de
+    // tres se salÃ­an de su hueco y se comÃ­an la de abajo â€” eso era el
+    // "se amontonan", y el separador solo lo disimulaba. MidiÃ©ndolas de
     // verdad, cada una ocupa lo suyo.
     measureElement: (el) => el.getBoundingClientRect().height,
   })
 
   // Que el resaltado del TECLADO quede a la vista.
   //
-  // `saltarAjuste` existe porque pulsar una fila también mueve el resaltado,
-  // y entonces esto llamaba a scrollToIndex sobre una lista aún a medio
+  // `saltarAjuste` existe porque pulsar una fila tambiÃ©n mueve el resaltado,
+  // y entonces esto llamaba a scrollToIndex sobre una lista aÃºn a medio
   // medir: la lista se desplazaba 442 px en el momento de abrir, antes
-  // siquiera de volver. Con A/D sí hace falta; con el ratón no.
+  // siquiera de volver. Con A/D sÃ­ hace falta; con el ratÃ³n no.
   useEffect(() => {
     if (saltarAjuste.current) { saltarAjuste.current = false; return }
     if (filtradas.length) virtual.scrollToIndex(resaltado, { align: 'auto' })
   }, [resaltado, filtradas.length, virtual])
 
   /**
-   * Vuelve a dejar la lista donde estaba, con la conversación que abriste en
+   * Vuelve a dejar la lista donde estaba, con la conversaciÃ³n que abriste en
    * el mismo punto de la pantalla.
    *
-   * No fija un scrollTop: MIDE dónde ha quedado la fila y corrige la
-   * diferencia, repitiendo unos fotogramas. Las filas se miden después de
-   * pintarse (measureElement), así que un scrollTop puesto de golpe apunta a
-   * una fila distinta un instante después — que es justo el salto que
-   * había. Corrigiendo contra la posición real, da igual cuándo terminen de
+   * No fija un scrollTop: MIDE dÃ³nde ha quedado la fila y corrige la
+   * diferencia, repitiendo unos fotogramas. Las filas se miden despuÃ©s de
+   * pintarse (measureElement), asÃ­ que un scrollTop puesto de golpe apunta a
+   * una fila distinta un instante despuÃ©s â€” que es justo el salto que
+   * habÃ­a. Corrigiendo contra la posiciÃ³n real, da igual cuÃ¡ndo terminen de
    * medirse: converge solo.
    */
   const restaurarAncla = useCallback(() => {
@@ -94,7 +96,7 @@ export function ListaConversaciones() {
     if (!el || !ancla) return
 
     const idx = filtradas.findIndex((c) => c.cliente_id === ancla.clienteId)
-    if (idx < 0) return          // ya no está en la lista (otro filtro): no se toca
+    if (idx < 0) return          // ya no estÃ¡ en la lista (otro filtro): no se toca
 
     let intentos = 0
     const ajustar = () => {
@@ -102,7 +104,7 @@ export function ListaConversaciones() {
       if (!c) return
       const fila = c.querySelector<HTMLElement>(`[data-cliente="${CSS.escape(ancla.clienteId)}"]`)
       if (!fila) {
-        // Todavía no está pintada: el virtualizador no la tiene en pantalla.
+        // TodavÃ­a no estÃ¡ pintada: el virtualizador no la tiene en pantalla.
         // Se le pide que la traiga y se reintenta.
         virtual.scrollToIndex(idx, { align: 'start' })
         if (intentos++ < 30) requestAnimationFrame(ajustar)
@@ -118,7 +120,7 @@ export function ListaConversaciones() {
     requestAnimationFrame(ajustar)
   }, [anclaLista, filtradas, virtual])
 
-  // Al volver a la lista (deja de haber conversación abierta), restaurar UNA
+  // Al volver a la lista (deja de haber conversaciÃ³n abierta), restaurar UNA
   // vez. El ref evita que un refetch posterior vuelva a moverla bajo el dedo.
   useEffect(() => {
     if (clienteId) { yaRestaurado.current = false; return }
@@ -133,18 +135,24 @@ export function ListaConversaciones() {
   return (
     <div className="flex h-full flex-col">
       {/* El buscador vive dentro de la fila de filtros: se despliega al
-          pulsar la lupa. Aquí tenía una fila propia de 52 px ocupados todo
-          el día para algo que se usa a ratos. */}
+          pulsar la lupa. AquÃ­ tenÃ­a una fila propia de 52 px ocupados todo
+          el dÃ­a para algo que se usa a ratos. */}
       <FiltrosLista conversaciones={conversaciones ?? []} />
 
       <AvisoCorruptas />
 
       <div ref={contenedor} className="flex-1 overflow-y-auto">
         {filtradas.length === 0 ? (
-          <Vacio
-            titulo={busqueda ? 'Sin resultados' : TITULO_VACIO[bandeja]}
-            detalle={!busqueda && bandeja === 'bandeja' ? undefined : 'Prueba a quitar los filtros.'}
-          />
+          // Con bÃºsqueda NO se dice Â«sin resultadosÂ» a secas: puede que no
+          // haya conversaciones que casen y sÃ­ mensajes, que van justo
+          // debajo. Decir que no hay nada teniendo doce resultados abajo es
+          // la clase de mentira que hace que se deje de usar el buscador.
+          busqueda.trim().length >= MINIMO_BUSQUEDA ? null : (
+            <Vacio
+              titulo={busqueda ? 'Sin resultados' : TITULO_VACIO[bandeja]}
+              detalle={!busqueda && bandeja === 'bandeja' ? undefined : 'Prueba a quitar los filtros.'}
+            />
+          )
         ) : (
           <div style={{ height: virtual.getTotalSize(), position: 'relative' }}>
             {virtual.getVirtualItems().map((v) => {
@@ -155,8 +163,8 @@ export function ListaConversaciones() {
                   data-cliente={c.cliente_id}
                   data-index={v.index}
                   ref={virtual.measureElement}
-                  // Sin `height`: la mide measureElement. Fijarla aquí sería
-                  // volver al problema — el hueco diría 76 y el contenido 86.
+                  // Sin `height`: la mide measureElement. Fijarla aquÃ­ serÃ­a
+                  // volver al problema â€” el hueco dirÃ­a 76 y el contenido 86.
                   style={{
                     position: 'absolute', top: 0, left: 0, width: '100%',
                     transform: `translateY(${v.start}px)`,
@@ -165,8 +173,8 @@ export function ListaConversaciones() {
                   <Fila
                     conv={c}
                     canal={mezclando ? porCanal.get(c.canal_id ?? -1) : undefined}
-                    // Esta SÍ va siempre, mezclando o no: que María esté
-                    // callada en el número no depende de cómo filtres.
+                    // Esta SÃ va siempre, mezclando o no: que MarÃ­a estÃ©
+                    // callada en el nÃºmero no depende de cÃ³mo filtres.
                     callada={!mariaAtiende(porCanal.get(c.canal_id ?? -1))}
                     activa={c.cliente_id === clienteId}
                     ultima={c.cliente_id === ultimaAbierta && c.cliente_id !== clienteId}
@@ -174,9 +182,9 @@ export function ListaConversaciones() {
                     marcada={marcas.has(c.id)}
                     abierta={deslizada === c.cliente_id}
                     onDeslizar={(destapada) => setDeslizada(destapada ? c.cliente_id : null)}
-                    // La marca es POR CANAL, así que necesita saber de qué
-                    // número es esta conversación. Sin `canal_id` la fila ni
-                    // siquiera llega hasta aquí — `motivoCorrupta` la aparta.
+                    // La marca es POR CANAL, asÃ­ que necesita saber de quÃ©
+                    // nÃºmero es esta conversaciÃ³n. Sin `canal_id` la fila ni
+                    // siquiera llega hasta aquÃ­ â€” `motivoCorrupta` la aparta.
                     onMarcar={() => {
                       if (c.canal_id == null) return
                       marcar.mutate({
@@ -186,8 +194,8 @@ export function ListaConversaciones() {
                       setDeslizada(null)
                     }}
                     onClick={(el) => {
-                      // El ancla se toma AQUÍ, con la fila todavía en su
-                      // sitio: después de navegar ya es tarde.
+                      // El ancla se toma AQUÃ, con la fila todavÃ­a en su
+                      // sitio: despuÃ©s de navegar ya es tarde.
                       const caja = contenedor.current
                       const fila = (el.currentTarget as HTMLElement).closest('[data-cliente]')
                       if (caja && fila) {
@@ -207,6 +215,15 @@ export function ListaConversaciones() {
             })}
           </div>
         )}
+
+        {/*
+          Y DEBAJO, lo que se encontrÃ³ DENTRO de los mensajes.
+
+          Va dentro del mismo contenedor con scroll para que se llegue a ello
+          bajando, como en WhatsApp. Pregunta al servidor, asÃ­ que alcanza los
+          16 000 mensajes y no solo lo que hay cargado.
+        */}
+        <ResultadosMensajes termino={busqueda} conversaciones={conversaciones ?? []} />
       </div>
     </div>
   )
@@ -220,15 +237,15 @@ export function Fila({
   onClick, onMarcar, onDeslizar,
 }: {
   conv: Conversacion
-  /** Solo llega si estás viendo todos los canales mezclados. */
+  /** Solo llega si estÃ¡s viendo todos los canales mezclados. */
   canal?: Canal
-  /** María está pausada en el canal de esta conversación. */
+  /** MarÃ­a estÃ¡ pausada en el canal de esta conversaciÃ³n. */
   callada: boolean
   activa: boolean
-  /** La última que abriste, para localizarla de un vistazo al volver. */
+  /** La Ãºltima que abriste, para localizarla de un vistazo al volver. */
   ultima: boolean
   resaltada: boolean
-  /** Es la marca de «revisado hasta aquí» de su canal. */
+  /** Es la marca de Â«revisado hasta aquÃ­Â» de su canal. */
   marcada: boolean
   /** Tiene el panel de la marca destapado. */
   abierta: boolean
@@ -240,41 +257,41 @@ export function Fila({
   const fijada = usePonerFijada()
   const etiquetas = conv.etiquetas ?? []
   const productos = productosDe(conv)
-  // Sale de la conversación y no de una prop, al revés que `callada`: eso
-  // es del CANAL y hay que traérselo de fuera; esto viaja en la propia fila.
+  // Sale de la conversaciÃ³n y no de una prop, al revÃ©s que `callada`: eso
+  // es del CANAL y hay que traÃ©rselo de fuera; esto viaja en la propia fila.
   const escalada = escaladaAbierta(conv)
 
   /*
     EL GESTO DE DESLIZAR.
 
-    Con eventos de PUNTERO, no de tacto: así el mismo código vale para el
-    dedo en el móvil y para arrastrar con el ratón en el PC. Con `touchstart`
-    la marca solo existiría en el móvil, y se pidió poder usarla en los dos.
+    Con eventos de PUNTERO, no de tacto: asÃ­ el mismo cÃ³digo vale para el
+    dedo en el mÃ³vil y para arrastrar con el ratÃ³n en el PC. Con `touchstart`
+    la marca solo existirÃ­a en el mÃ³vil, y se pidiÃ³ poder usarla en los dos.
 
     Lo delicado es no robarle el scroll a la lista. Hasta que el puntero no
-    se ha movido 8 px no se decide nada; ahí se mira qué eje manda y, si
+    se ha movido 8 px no se decide nada; ahÃ­ se mira quÃ© eje manda y, si
     manda el vertical, el gesto se ABANDONA y la lista scrollea como
-    siempre. Solo si manda el horizontal se captura el puntero. Al revés
-    —capturar primero y decidir después— la lista se queda pegada en cuanto
+    siempre. Solo si manda el horizontal se captura el puntero. Al revÃ©s
+    â€”capturar primero y decidir despuÃ©sâ€” la lista se queda pegada en cuanto
     rozas una fila, que en una lista de 341 es inaceptable.
   */
   const [arrastre, setArrastre] = useState<number | null>(null)
   const gesto = useRef<{ x: number; y: number; eje: '?' | 'x' } | null>(null)
   // Un arrastre horizontal termina soltando ENCIMA de la fila, y eso el
-  // navegador lo cuenta como un clic. Sin esta bandera, deslizar abriría
-  // además la conversación.
+  // navegador lo cuenta como un clic. Sin esta bandera, deslizar abrirÃ­a
+  // ademÃ¡s la conversaciÃ³n.
   const arrastrado = useRef(false)
 
   const x = arrastre ?? (abierta ? -ANCHO_MARCA : 0)
 
   const empezar = (e: React.PointerEvent) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return
-    // Se limpia AQUÍ, al empezar cada gesto, y no solo al tragarse el clic:
+    // Se limpia AQUÃ, al empezar cada gesto, y no solo al tragarse el clic:
     // un `pointercancel` (el navegador se queda el gesto, entra una llamada,
-    // cambias de app) termina sin clic y dejaría la bandera puesta. Entonces
-    // el siguiente toque, uno legítimo, se lo comería este mismo guardia y
-    // la conversación no abriría — un fallo que solo aparece a ratos y que
-    // nadie sabría reproducir.
+    // cambias de app) termina sin clic y dejarÃ­a la bandera puesta. Entonces
+    // el siguiente toque, uno legÃ­timo, se lo comerÃ­a este mismo guardia y
+    // la conversaciÃ³n no abrirÃ­a â€” un fallo que solo aparece a ratos y que
+    // nadie sabrÃ­a reproducir.
     arrastrado.current = false
     gesto.current = { x: e.clientX, y: e.clientY, eje: '?' }
   }
@@ -312,12 +329,12 @@ export function Fila({
 
     Cancelar significa que el navegador te ha quitado el gesto a media
     faena: entra una llamada, cambias de app, el sistema decide que en
-    realidad era un scroll. El dedo nunca llegó a decidir nada. Si aquí se
-    llamara a `onDeslizar`, un gesto que el usuario no terminó dejaría el
-    panel destapado, y encima sin el clic que lo cerraría después.
+    realidad era un scroll. El dedo nunca llegÃ³ a decidir nada. Si aquÃ­ se
+    llamara a `onDeslizar`, un gesto que el usuario no terminÃ³ dejarÃ­a el
+    panel destapado, y encima sin el clic que lo cerrarÃ­a despuÃ©s.
 
     Cancelar deshace: se suelta el arrastre y la fila vuelve al estado que
-    ya tenía.
+    ya tenÃ­a.
   */
   const cancelar = (e: React.PointerEvent) => {
     const g = gesto.current
@@ -334,28 +351,28 @@ export function Fila({
 
   const pulsar = (e: React.MouseEvent) => {
     if (arrastrado.current) { arrastrado.current = false; return }
-    // Con el panel destapado, tocar la fila lo cierra. Abrir la conversación
-    // con el botón de la marca a la vista sería un salto que nadie ha pedido.
+    // Con el panel destapado, tocar la fila lo cierra. Abrir la conversaciÃ³n
+    // con el botÃ³n de la marca a la vista serÃ­a un salto que nadie ha pedido.
     if (abierta) { onDeslizar(false); return }
     onClick(e)
   }
 
   return (
     /*
-      Tres capas: el recorte fuera, el botón de la marca al fondo y la fila
-      encima, que es la única que se mueve. El separador y el `group` viven
-      en el RECORTE, no en la fila: si viajaran con ella, la línea de abajo
-      se desplazaría con el dedo y el hover se perdería a mitad del gesto.
+      Tres capas: el recorte fuera, el botÃ³n de la marca al fondo y la fila
+      encima, que es la Ãºnica que se mueve. El separador y el `group` viven
+      en el RECORTE, no en la fila: si viajaran con ella, la lÃ­nea de abajo
+      se desplazarÃ­a con el dedo y el hover se perderÃ­a a mitad del gesto.
     */
     <div className="group relative overflow-hidden border-b border-borde/60">
       <div className="absolute inset-y-0 right-0 flex">
         <button
           onClick={(e) => { e.stopPropagation(); onMarcar() }}
-          // Fuera del recorrido del tabulador mientras está tapado: si no,
-          // el teclado se pararía 341 veces en un botón que no se ve.
+          // Fuera del recorrido del tabulador mientras estÃ¡ tapado: si no,
+          // el teclado se pararÃ­a 341 veces en un botÃ³n que no se ve.
           tabIndex={abierta ? 0 : -1}
           className="flex w-[76px] flex-col items-center justify-center gap-1 bg-amber-400 text-[10px] font-semibold text-slate-900 transition-colors hover:bg-amber-300"
-          aria-label={marcada ? 'Quitar la marca de revisado' : 'Marcar revisado hasta aquí'}
+          aria-label={marcada ? 'Quitar la marca de revisado' : 'Marcar revisado hasta aquÃ­'}
         >
           {marcada ? <BookmarkX className="h-5 w-5" /> : <Bookmark className="h-5 w-5" />}
           {marcada ? 'Quitar' : 'Marcar'}
@@ -370,27 +387,27 @@ export function Fila({
         onPointerMove={mover}
         onPointerUp={soltar}
         onPointerCancel={cancelar}
-        // El teclado también abre, y también tiene que dejar el ancla puesta:
-        // `onClick` la calcula desde currentTarget, que aquí es la misma fila.
+        // El teclado tambiÃ©n abre, y tambiÃ©n tiene que dejar el ancla puesta:
+        // `onClick` la calcula desde currentTarget, que aquÃ­ es la misma fila.
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pulsar(e as unknown as React.MouseEvent) }
         }}
         style={{
           transform: x ? `translateX(${x}px)` : undefined,
-          // Sin transición mientras el puntero manda: el retardo se notaría
-          // como que la fila va detrás del dedo. Al soltar, sí.
+          // Sin transiciÃ³n mientras el puntero manda: el retardo se notarÃ­a
+          // como que la fila va detrÃ¡s del dedo. Al soltar, sÃ­.
           transition: arrastre === null ? 'transform .18s ease' : 'none',
           // El scroll vertical se lo queda el navegador; el horizontal, esto.
           touchAction: 'pan-y',
         }}
         className={[
           'relative flex w-full cursor-pointer items-center gap-3 px-3 py-2.5 text-left',
-          // `bg-panel` es el ÚNICO fondo de la fila, y tiene que ser opaco:
-          // es lo que tapa el botón de la marca mientras la fila está en su
-          // sitio. Los estados (activa, resaltada, hover) NO se ponen aquí
-          // como un `bg-*` más: dos clases de fondo en el mismo elemento las
+          // `bg-panel` es el ÃšNICO fondo de la fila, y tiene que ser opaco:
+          // es lo que tapa el botÃ³n de la marca mientras la fila estÃ¡ en su
+          // sitio. Los estados (activa, resaltada, hover) NO se ponen aquÃ­
+          // como un `bg-*` mÃ¡s: dos clases de fondo en el mismo elemento las
           // resuelve Tailwind por el orden de su hoja de estilos, no por el
-          // orden en que las escribas, así que cuál gana es una lotería. Van
+          // orden en que las escribas, asÃ­ que cuÃ¡l gana es una loterÃ­a. Van
           // en capas, justo debajo.
           'bg-panel',
         ].join(' ')}
@@ -402,7 +419,7 @@ export function Fila({
           que no le roben el gesto de deslizar a la fila.
 
           `group-hover` y no `hover` porque el `group` vive en el recorte, que
-          es quien no se mueve: colgado de la fila, el hover se perdería en
+          es quien no se mueve: colgado de la fila, el hover se perderÃ­a en
           cuanto la fila se desplazara bajo el cursor.
         */}
         <span
@@ -414,10 +431,10 @@ export function Fila({
         />
 
         {/*
-          Amarillo si es la marca; si no, el tinte flojo de la última abierta.
+          Amarillo si es la marca; si no, el tinte flojo de la Ãºltima abierta.
 
-          La marca gana a «última abierta» a propósito: son dos cosas
-          distintas —por dónde ibas repasando y qué abriste la última vez— y
+          La marca gana a Â«Ãºltima abiertaÂ» a propÃ³sito: son dos cosas
+          distintas â€”por dÃ³nde ibas repasando y quÃ© abriste la Ãºltima vezâ€” y
           si coinciden, la que hay que ver es la marca.
         */}
         {(marcada || ultima) && (
@@ -443,17 +460,17 @@ export function Fila({
         <div className="relative min-w-0 flex-1">
           <div className="flex items-baseline gap-1.5">
             {/*
-              EL NÚMERO manda; el nombre de WhatsApp pasa detrás.
+              EL NÃšMERO manda; el nombre de WhatsApp pasa detrÃ¡s.
 
               El nombre lo pone el cliente y lo cambia cuando quiere. El
-              número es el `cliente_id`, la identidad de verdad (regla 3), y
+              nÃºmero es el `cliente_id`, la identidad de verdad (regla 3), y
               es lo que hace falta para buscar, para cuadrar un pedido y para
               el `curl` de la pausa. Por eso se lleva el peso visual y el
               nombre se queda como pista.
 
-              El número NO trunca y el nombre SÍ: si en un móvil estrecho
+              El nÃºmero NO trunca y el nombre SÃ: si en un mÃ³vil estrecho
               tiene que ceder alguno, cede el que no identifica a nadie.
-              El `title` lleva el número crudo, sin agrupar, que es el que se
+              El `title` lleva el nÃºmero crudo, sin agrupar, que es el que se
               copia y se pega.
             */}
             <span className="shrink-0 font-medium tabular-nums" title={conv.cliente_id}>
@@ -466,31 +483,31 @@ export function Fila({
             {/*
               LOS DISTINTIVOS, todos a la derecha.
 
-              Estaban a la IZQUIERDA del número y lo empujaban: el
-              identificador de la conversación se movía de sitio según
-              estuviera marcada o con el canal pausado, así que al recorrer
-              la lista los números no quedaban alineados y costaba leerlos
-              en vertical. Ahora el número siempre arranca en el mismo punto
+              Estaban a la IZQUIERDA del nÃºmero y lo empujaban: el
+              identificador de la conversaciÃ³n se movÃ­a de sitio segÃºn
+              estuviera marcada o con el canal pausado, asÃ­ que al recorrer
+              la lista los nÃºmeros no quedaban alineados y costaba leerlos
+              en vertical. Ahora el nÃºmero siempre arranca en el mismo punto
               y lo que baila es el borde derecho, que no se lee.
 
-              AQUÍ NO HAY PIN, y es a propósito. Lo había, y salían DOS
-              chinchetas por fila: esta y la del botón de fijar, que ya se
-              pone verde y rellena cuando la conversación está fijada. Un
-              estado se anuncia UNA vez. Se quedó el botón porque es el
-              único de los dos que además sirve para desfijar; un adorno que
-              no se puede pulsar no aporta nada que el botón no diga ya.
+              AQUÃ NO HAY PIN, y es a propÃ³sito. Lo habÃ­a, y salÃ­an DOS
+              chinchetas por fila: esta y la del botÃ³n de fijar, que ya se
+              pone verde y rellena cuando la conversaciÃ³n estÃ¡ fijada. Un
+              estado se anuncia UNA vez. Se quedÃ³ el botÃ³n porque es el
+              Ãºnico de los dos que ademÃ¡s sirve para desfijar; un adorno que
+              no se puede pulsar no aporta nada que el botÃ³n no diga ya.
 
-              Marcada y pausada sí siguen aquí porque sus controles no están
+              Marcada y pausada sÃ­ siguen aquÃ­ porque sus controles no estÃ¡n
               en esta fila: la marca vive en el panel que se destapa al
-              deslizar y la pausa del canal se toca desde la conversación.
-              Ahí el distintivo es la única señal que hay, no una repetición.
+              deslizar y la pausa del canal se toca desde la conversaciÃ³n.
+              AhÃ­ el distintivo es la Ãºnica seÃ±al que hay, no una repeticiÃ³n.
 
-              El canal (MX) y la HORA ya no están aquí: se han ido abajo, a
-              la columna de acciones, cada uno bajo su icono. Esta línea es
-              la que identifica al cliente y era la que más se apelotonaba en
-              un móvil estrecho —número, nombre, chip, tres iconos y hora—;
-              quitando los dos que no son de esta conversación sino de
-              cuándo y por dónde, el nombre recupera todo el ancho que le
+              El canal (MX) y la HORA ya no estÃ¡n aquÃ­: se han ido abajo, a
+              la columna de acciones, cada uno bajo su icono. Esta lÃ­nea es
+              la que identifica al cliente y era la que mÃ¡s se apelotonaba en
+              un mÃ³vil estrecho â€”nÃºmero, nombre, chip, tres iconos y horaâ€”;
+              quitando los dos que no son de esta conversaciÃ³n sino de
+              cuÃ¡ndo y por dÃ³nde, el nombre recupera todo el ancho que le
               sobraba.
 
               `ml-auto` en el grupo: lo empuja contra el borde tanto si hay
@@ -498,24 +515,24 @@ export function Fila({
             */}
             <span className="ml-auto flex shrink-0 items-center gap-1.5">
               {/*
-                ESCALADA, y la primera del grupo porque es la única que
-                significa «esto está parado esperándote».
+                ESCALADA, y la primera del grupo porque es la Ãºnica que
+                significa Â«esto estÃ¡ parado esperÃ¡ndoteÂ».
 
-                Va aquí y no abajo con las etiquetas por el mismo motivo que
-                la marca y la pausa: su control no está en esta fila —se
-                resuelve desde la cabecera del hilo—, así que el distintivo
-                es la única señal que hay, no una repetición de un botón que
+                Va aquÃ­ y no abajo con las etiquetas por el mismo motivo que
+                la marca y la pausa: su control no estÃ¡ en esta fila â€”se
+                resuelve desde la cabecera del hiloâ€”, asÃ­ que el distintivo
+                es la Ãºnica seÃ±al que hay, no una repeticiÃ³n de un botÃ³n que
                 ya lo dice.
 
-                El `title` lleva el motivo que escribió María. Es texto suyo
-                y puede ser cualquier cosa, así que se enseña al pasar por
+                El `title` lleva el motivo que escribiÃ³ MarÃ­a. Es texto suyo
+                y puede ser cualquier cosa, asÃ­ que se enseÃ±a al pasar por
                 encima y no en la fila: ocupando sitio fijo, un motivo largo
-                le comería el nombre al cliente en un móvil.
+                le comerÃ­a el nombre al cliente en un mÃ³vil.
               */}
               {escalada && (
-                // Triángulo de aviso, la misma palabra que la etiqueta roja
+                // TriÃ¡ngulo de aviso, la misma palabra que la etiqueta roja
                 // que le pone el flujo: quien vea el icono y quien filtre por
-                // «Incidencia» tienen que entender que hablan de lo mismo.
+                // Â«IncidenciaÂ» tienen que entender que hablan de lo mismo.
                 //
                 // El title va en el <span> y no en el icono: los de lucide
                 // no lo aceptan como prop y lo tiran sin decir nada.
@@ -532,12 +549,12 @@ export function Fila({
                 </span>
               )}
               {callada && (
-                <BotOff className="h-3.5 w-3.5 text-alerta" aria-label="María pausada en este canal" />
+                <BotOff className="h-3.5 w-3.5 text-alerta" aria-label="MarÃ­a pausada en este canal" />
               )}
               {marcada && (
                 <Bookmark
                   className="h-3.5 w-3.5 fill-current text-amber-400"
-                  aria-label="Revisado hasta aquí"
+                  aria-label="Revisado hasta aquÃ­"
                 />
               )}
             </span>
@@ -556,14 +573,14 @@ export function Fila({
           </div>
 
           {/*
-            TERCERA LÍNEA, y solo una: producto + etiquetas juntos.
+            TERCERA LÃNEA, y solo una: producto + etiquetas juntos.
 
-            Fuera el chip de canal (WA/EV/AD): hoy solo entra tráfico real por
+            Fuera el chip de canal (WA/EV/AD): hoy solo entra trÃ¡fico real por
             uno, ya se dice en la cabecera del hilo, y era una pastilla en cada
             fila que no cambiaba nunca.
 
             Las etiquetas pasan de pastilla con nombre a PUNTO de color. Son
-            las que se comían la fila en la conversación de Adil; el nombre
+            las que se comÃ­an la fila en la conversaciÃ³n de Adil; el nombre
             sigue en el title y entero en la cabecera del hilo.
           */}
           {(productos.length > 0 || etiquetas.length > 0) && (
@@ -583,13 +600,13 @@ export function Fila({
                 <span className="truncate">
                   {productos.slice(0, 2).map((p, i) => (
                     <span key={p.producto}>
-                      {i > 0 && <span className="opacity-40"> · </span>}
+                      {i > 0 && <span className="opacity-40"> Â· </span>}
                       {nombreProducto(p.producto)}
                       {p.estado === 'pendiente' && (
-                        <span className="ml-0.5 text-amber-400" title="Pedido pendiente de validar">●</span>
+                        <span className="ml-0.5 text-amber-400" title="Pedido pendiente de validar">â—</span>
                       )}
                       {p.estado === 'validado' && (
-                        <span className="ml-0.5 text-acento" title="Pedido validado">✓</span>
+                        <span className="ml-0.5 text-acento" title="Pedido validado">âœ“</span>
                       )}
                     </span>
                   ))}
@@ -602,14 +619,14 @@ export function Fila({
 
         {/*
           ACCIONES. Calladas hasta que las buscas: en reposo solo se ve lo que
-          está ENCENDIDO (fijada, favorita, comprado). El resto aparece al pasar
+          estÃ¡ ENCENDIDO (fijada, favorita, comprado). El resto aparece al pasar
           por encima o al llegar con el teclado.
 
-          La marca NO está aquí, vive en el panel que se destapa al deslizar.
-          Por dos motivos: aquí ya hay tres iconos y en un móvil de 375 px un
-          cuarto se come el sitio del mensaje; y la marca se MUEVE —es una
-          sola en todo el canal— mientras que fijar y favorita son propiedades
-          de esta conversación y solo de esta.
+          La marca NO estÃ¡ aquÃ­, vive en el panel que se destapa al deslizar.
+          Por dos motivos: aquÃ­ ya hay tres iconos y en un mÃ³vil de 375 px un
+          cuarto se come el sitio del mensaje; y la marca se MUEVE â€”es una
+          sola en todo el canalâ€” mientras que fijar y favorita son propiedades
+          de esta conversaciÃ³n y solo de esta.
 
           `acciones-fila` las deja siempre visibles en pantallas sin hover, que
           es donde no hay forma de descubrirlas de otra manera. Ver index.css.
@@ -642,30 +659,30 @@ export function Fila({
           </button>
 
           {/* El carrito se pinta solo si hay pedido; si no, se comporta como
-              las otras acciones y asoma al pasar por encima. Esa lógica vive
-              dentro del componente, que es quien sabe en qué estado está. */}
+              las otras acciones y asoma al pasar por encima. Esa lÃ³gica vive
+              dentro del componente, que es quien sabe en quÃ© estado estÃ¡. */}
           <CarritoPedido conv={conv} compacto />
 
           {/*
             SEGUNDA FILA de la columna: la HORA bajo el favorito y el CANAL
-            bajo el carrito. Antes vivían en la línea 1, apretando al número
+            bajo el carrito. Antes vivÃ­an en la lÃ­nea 1, apretando al nÃºmero
             y al nombre.
 
-            Van aquí y no sueltas en el texto porque no son datos de la
-            conversación —no dicen quién es ni qué quiere—, son el CUÁNDO y
-            el POR DÓNDE. Puestas en la misma rejilla que los iconos caen
+            Van aquÃ­ y no sueltas en el texto porque no son datos de la
+            conversaciÃ³n â€”no dicen quiÃ©n es ni quÃ© quiereâ€”, son el CUÃNDO y
+            el POR DÃ“NDE. Puestas en la misma rejilla que los iconos caen
             cada una bajo el suyo y la columna derecha se lee como un
             bloque, no como cosas repartidas por la fila.
 
             `grid-cols-3` compartido por las dos filas es lo que garantiza
-            la alineación: si la hora fuese un `flex` aparte, cualquier
-            cambio de ancho —"9:05" contra "ayer"— la descolocaría respecto
-            al icono de arriba. La celda 1 va vacía a propósito: debajo de
+            la alineaciÃ³n: si la hora fuese un `flex` aparte, cualquier
+            cambio de ancho â€”"9:05" contra "ayer"â€” la descolocarÃ­a respecto
+            al icono de arriba. La celda 1 va vacÃ­a a propÃ³sito: debajo de
             la chincheta no hay nada que poner.
 
             `content-between` las baja al pie de la fila, a la altura del
-            nombre del producto. No chocan con él: son columnas hermanas de
-            un flex, así que el producto trunca dentro de la suya y esta se
+            nombre del producto. No chocan con Ã©l: son columnas hermanas de
+            un flex, asÃ­ que el producto trunca dentro de la suya y esta se
             queda con su ancho pase lo que pase.
           */}
           <span aria-hidden />
@@ -690,8 +707,8 @@ export function Fila({
 
 /**
  * Filas que no se pueden abrir (sin cliente_id o sin canal). No se pintan
- * en la lista para que nadie pinche en un hilo muerto, pero SÍ se dice que
- * están: esconderlas del todo convierte un dato roto en un misterio.
+ * en la lista para que nadie pinche en un hilo muerto, pero SÃ se dice que
+ * estÃ¡n: esconderlas del todo convierte un dato roto en un misterio.
  */
 function AvisoCorruptas() {
   const corruptas = useConversacionesCorruptas()
@@ -700,7 +717,7 @@ function AvisoCorruptas() {
     <div className="mx-2 mt-2 rounded-lg bg-alerta/10 px-3 py-2 text-[11px] text-alerta">
       <strong>
         {corruptas.length === 1
-          ? '1 conversación corrupta oculta'
+          ? '1 conversaciÃ³n corrupta oculta'
           : `${corruptas.length} conversaciones corruptas ocultas`}
       </strong>
       <span className="block opacity-80">
