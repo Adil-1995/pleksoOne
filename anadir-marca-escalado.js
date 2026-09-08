@@ -6,17 +6,23 @@
  * 130 nodos en una sola línea: un editor de texto ahí es una forma cara de
  * romper un JSON de producción sin enterarte.
  *
- * Entrada:  workflows/receptor-multicanal-historial.json   (espejo del vivo)
- * Salida:   workflows/receptor-multicanal-escalado.json    (para IMPORTAR)
+ *   node anadir-marca-escalado.js <vivo.json> <salida.json>
+ *
+ * La entrada se pasa POR ARGUMENTO y no está a fuego, y eso no es cosmético:
+ * la primera versión leía el espejo del repo, y entre generarlo y subirlo
+ * cambió el receptor (se aplicó lo del contexto, 130 nodos -> 128). Subir
+ * aquel fichero habría REVERTIDO el arreglo del contexto sin un solo error.
+ * Se genera SIEMPRE contra un GET recién bajado del vivo.
  *
  * NO toca n8n. Solo escribe un fichero.
  */
 const fs = require('fs')
-const path = require('path')
 
-const raiz = __dirname
-const origen = path.join(raiz, 'workflows', 'receptor-multicanal-historial.json')
-const destino = path.join(raiz, 'workflows', 'receptor-multicanal-escalado.json')
+const [, , origen, destino] = process.argv
+if (!origen || !destino) {
+  console.error('uso: node anadir-marca-escalado.js <vivo.json> <salida.json>')
+  process.exit(1)
+}
 
 const wf = JSON.parse(fs.readFileSync(origen, 'utf8'))
 
@@ -88,10 +94,29 @@ wf.nodes.push({
 const salida = wf.connections['Preparar aviso'].main[0]
 salida.push({ node: nombre, type: 'main', index: 0 })
 
-fs.writeFileSync(destino, JSON.stringify(wf, null, 2) + '\n', 'utf8')
+// El PUT de la API pública solo acepta estas claves. Ojo con `activeVersion`,
+// que el GET sí devuelve: es una copia congelada de la versión publicada y
+// colarla aquí no haría más que confundir a quien luego busque algo dentro.
+const limpio = {
+  name: wf.name,
+  nodes: wf.nodes,
+  connections: wf.connections,
+  settings: wf.settings || {},
+}
+if (wf.staticData) limpio.staticData = wf.staticData
 
-console.log('Escrito: ' + path.relative(raiz, destino))
+fs.writeFileSync(destino, JSON.stringify(limpio, null, 2) + '\n', 'utf8')
+
+console.log('Escrito: ' + destino)
 console.log('  nodos:    ' + wf.nodes.length)
 console.log('  posicion: ' + pos.join(','))
-console.log('  hijos de "Preparar aviso": ' + salida.map((c) => c.node).join(' -> '))
+console.log('  hijos de «Preparar aviso»: ' + salida.map((c) => c.node).join(' -> '))
+console.log('  claves del PUT: ' + Object.keys(limpio).join(', '))
 console.log('  executionOrder: ' + (wf.settings && wf.settings.executionOrder))
+
+// Que el arreglo del contexto siga dentro. Si esto salta, la entrada era un
+// espejo viejo y subirlo habría deshecho el cambio anterior.
+const texto = JSON.stringify(limpio)
+console.log('  el contexto sigue en solo-referral: ' +
+  (texto.includes('SOLO el referral del anuncio') ? 'sí' : 'NO — PARA'))
+if (!texto.includes('SOLO el referral del anuncio')) process.exit(1)

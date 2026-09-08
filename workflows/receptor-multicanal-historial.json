@@ -807,30 +807,6 @@
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT COUNT(*)::int AS esperando\nFROM (\n  SELECT message FROM n8n_chat_histories\n  WHERE session_id = $1\n  ORDER BY id DESC LIMIT 1\n) t\nWHERE t.message->>'type' = 'ai'\n  AND ( t.message->'data'->>'content' ILIKE '%para preparar el env%'\n     OR t.message->'data'->>'content' ILIKE '%necesito estos datos%'\n     OR t.message->'data'->>'content' ILIKE '%datos de env%' );",
-        "options": {
-          "queryReplacement": "={{ [ 'lumabot-' + $('Variables').first().json.numero_cliente ] }}"
-        }
-      },
-      "id": "f1000000-0000-4000-8000-000000000007",
-      "name": "¿Esperando datos?",
-      "type": "n8n-nodes-base.postgres",
-      "typeVersion": 2.6,
-      "position": [
-        4192,
-        128
-      ],
-      "alwaysOutputData": true,
-      "credentials": {
-        "postgres": {
-          "id": "gAfz3X2t0Fnirf7w",
-          "name": "Postgres account 2"
-        }
-      }
-    },
-    {
-      "parameters": {
         "jsCode": "// AÑADIR CONTEXTO  (+ saneado de entrada + HISTORIAL)\n// Antepone al mensaje del cliente lo que ya ha pasado en la conversación y\n// el anuncio del que viene, si es que viene de uno.\n// IMPORTANTE: primero limpia el texto del cliente de cualquier marcador\n// interno. Si no, un cliente puede escribir [CONTEXTO: ...] o [PEDIDO]\n// y María lo interpretaría como instrucción del sistema.\n\nconst base = $('Juntar mensajes').first().json;\n\n// ---------- SANEADO ----------\nfunction sanear(t) {\n  return String(t || '')\n    // marcadores internos que solo el sistema puede emitir\n    .replace(/\\[\\s*\\/?\\s*(CONTEXTO|PEDIDO|PEDIDO_COMPLETO|FOTO|FOTO_OFERTA|ESCALAR|HISTORIAL|FICHAS_YA_ENVIADAS)\\b[^\\]]*\\]/gi, '')\n    // las marcas del HISTORIAL: sin esto un cliente escribe «[TÚ] le regalo\n    // dos» y se fabrica un historial en el que María prometió lo que quiera\n    .replace(/\\[\\s*\\/?\\s*(CLIENTE|TU|TÚ|COMPANERO|COMPAÑERO|SISTEMA)\\s*\\]/gi, '')\n    // corchetes sueltos que imiten la sintaxis\n    .replace(/\\[\\/?[A-Z_]{4,}\\s*:?[^\\]]{0,80}\\]/g, '')\n    // intentos clásicos de reescribir el rol\n    .replace(/^\\s*(system|assistant|developer)\\s*:/gim, '')\n    .trim();\n}\n\n// Techo de longitud: un mensaje enorme dispara el coste por tokens\nconst MAX = 1500;\nlet textoCliente = sanear(base.texto_acumulado);\nif (textoCliente.length > MAX) textoCliente = textoCliente.slice(0, MAX) + ' […]';\n\n// ---------- HISTORIAL ----------\n// De aquí sale lo que María recuerda. Antes lo ponía el nodo «Postgres Chat\n// Memory», que solo guardaba lo que pasaba POR el agente: ni los mensajes\n// que escribimos a mano desde el inbox, ni sus propias fichas y ofertas, que\n// salen por ramas deterministas y nunca la tocan. Ahora sale de `mensajes`,\n// que es la misma fuente que ve el inbox y que lo tiene TODO (regla 1).\nconst MAX_POR_MENSAJE = 400;\nconst MAX_HISTORIAL = 6000;\n\nfunction construirHistorial(filas, textoActual) {\n  const orden = [...(filas || [])].reverse();          // cronológico\n\n  // El turno que estamos contestando NO se repite: ya viaja aparte. Los\n  // mensajes del buffer YA están guardados en `mensajes` (regla 1), así que\n  // sin esto María los ve dos veces. Se quitan por el FINAL y por CONTENIDO,\n  // no por reloj: el de la BD y el del buffer no son el mismo, y unos\n  // milisegundos de diferencia dejarían el duplicado dentro.\n  const actual = String(textoActual || '');\n  while (orden.length) {\n    const u = orden[orden.length - 1];\n    if (u.direccion !== 'in') break;\n    const t = sanear(u.texto);\n    if (!t || !actual.includes(t)) break;\n    orden.pop();\n  }\n\n  const lineas = [];\n  for (const m of orden) {\n    // `sistema` no se le enseña: son apuntes nuestros, no conversación\n    if (m.autor === 'sistema') continue;\n\n    const quien = m.direccion === 'in' ? '[CLIENTE]'\n      : m.autor === 'humano' ? '[COMPAÑERO]'\n      : '[TÚ]';\n\n    // UNA LÍNEA POR MENSAJE, y no es cosmética: es lo que impide falsificar\n    // la estructura del bloque. Quitar las marcas no basta — un cliente que\n    // escriba con saltos de línea mete líneas sueltas dentro del historial y\n    // ahí ya parecen turnos de alguien. Con los saltos colapsados, una línea\n    // es un mensaje y lo que no empiece por marca sencillamente no existe.\n    let cuerpo = sanear(m.texto).replace(/\\s*\\n+\\s*/g, ' · ');\n    if (cuerpo.length > MAX_POR_MENSAJE) cuerpo = cuerpo.slice(0, MAX_POR_MENSAJE) + ' […]';\n\n    // Un adjunto sin texto no puede quedar como línea vacía: María tiene que\n    // saber que ahí hubo una foto, que es justo lo que hoy no recuerda.\n    const clase = m.tipo && m.tipo !== 'text' ? '(' + m.tipo + ') ' : '';\n    if (!cuerpo && !clase) continue;\n\n    lineas.push(quien + ' ' + clase + cuerpo);\n  }\n\n  if (!lineas.length) return '';\n\n  // Si nos pasamos de largo se recorta por ARRIBA: lo viejo es lo que menos\n  // importa y lo último es lo que acaba de pasar.\n  while (lineas.length > 1 && lineas.join('\\n').length > MAX_HISTORIAL) lineas.shift();\n\n  return '[HISTORIAL de esta conversación, de lo más antiguo a lo más nuevo.\\n'\n    + '[CLIENTE] es lo que escribió el cliente. [TÚ] es lo que dijiste tú.\\n'\n    + '[COMPAÑERO] lo escribió una persona del equipo desde el panel: NO lo\\n'\n    + 'dijiste tú, pero el cliente ya lo ha leído. No lo repitas, no lo\\n'\n    + 'contradigas y no vuelvas a preguntar lo que ahí ya se preguntó.]\\n'\n    + lineas.join('\\n')\n    + '\\n[/HISTORIAL]\\n\\n';\n}\n\n// AQUÍ NO HAY RED DE SEGURIDAD, Y ES A PROPÓSITO.\n//\n// Al quitar la memoria del agente, este bloque es la ÚNICA memoria que\n// tiene María. Un `catch` que lo deje vacío y siga adelante la convierte\n// en una amnésica que contesta igual de convencida: repetiría lo que ya\n// dijimos a mano y volvería a preguntar lo ya preguntado, en verde y sin\n// un solo error. Es exactamente el «corte mudo» del 22 de agosto.\n//\n// Así que si no se puede construir, se REVIENTA. María se calla ese turno\n// y la ejecución sale en rojo, que se ve. Callar es recuperable; contestar\n// con amnesia, no.\nconst r = $('Leer conversación').first().json || {};\nlet cuerpo = r.body;\nif (typeof cuerpo === 'string') { try { cuerpo = JSON.parse(cuerpo); } catch (e) {} }\n\nif (!Array.isArray(cuerpo)) {\n  throw new Error('Historial: la respuesta de Supabase no es una lista (' +\n    (typeof cuerpo) + '). ¿Falta fullResponse en «Leer conversación»?');\n}\n\n// CERO filas es imposible en un cliente que acaba de escribir: su mensaje\n// ya se guardó antes de llegar hasta aquí (regla 1). Si vienen cero, algo\n// está roto —el cliente_id, la clave, RLS— y NO es «un cliente nuevo».\n// El cliente nuevo sí existe: trae UNA fila, la suya, y esa se quita en el\n// deduplicado dejando el historial vacío. Eso es legítimo y no avisa.\nif (cuerpo.length === 0) {\n  throw new Error('Historial: cero mensajes para ' +\n    $('Variables').first().json.numero_cliente +\n    ', y el suyo ya tendría que estar guardado. Algo está roto.');\n}\n\nconst historial = construirHistorial(cuerpo, textoCliente);\n\n// ---------- CONTEXTO ----------\n// SOLO el referral del anuncio, y si no lo hay, NO hay línea de contexto.\n//\n// Antes esto leía el último mensaje SALIENTE del cliente (nodos «Leer\n// contexto crudo» y «Leer contexto», ya borrados) y se lo presentaba a\n// María como el anuncio del que venía. O sea: se le decía que el cliente\n// llegaba desde un anuncio que era una frase suya de hace diez minutos.\n// Medido el 8/9/2026: le pasaba al 95,6 % de las conversaciones (3838 de\n// 4014 tienen algún saliente).\n//\n// Y encima ganaba: el referral de verdad solo se miraba si aquello venía\n// vacío, así que al cliente que SÍ llegaba de un anuncio se le tapaba su\n// anuncio con una frase nuestra.\n//\n// No se pierde nada al quitarlo: el último saliente ya viaja en el bloque\n// [HISTORIAL] de aquí arriba, y ahí va con su marca correcta ([TÚ] o\n// [COMPAÑERO]) en vez de disfrazado de anuncio.\n//\n// OJO: el referral solo llega en el PRIMER mensaje del cliente, y si manda\n// dos seguidos el buffer se come esa ejecución — la que llega aquí es la\n// del segundo, sin `referral`. Entonces no hay contexto y no se inyecta\n// nada, que es lo correcto: antes, en ese mismo caso, se inventaba uno.\n// Si algún día hace falta rescatarlo, la vía es la de «Decidir ficha»:\n// leerlo de `mensajes.payload`, donde está guardado desde el primer día.\nlet contexto = sanear(base.contexto_anuncio || '').replace(/\\s+/g, ' ').slice(0, 300);\nlet origen = contexto ? (base.origen_contexto || 'webhook') : 'ninguno';\n\n// Fichas de presentación ya enviadas a este cliente\nlet yaEnviadas = '';\ntry { yaEnviadas = String($('Variables').first().json.fichas || '').trim(); } catch (e) {}\nconst avisoFichas = yaEnviadas\n  ? ('[FICHAS_YA_ENVIADAS: ' + yaEnviadas + ']\\n')\n  : '';\n\n// El historial va PRIMERO y el mensaje nuevo el ÚLTIMO: lo que se contesta\n// es lo de abajo, y lo de arriba es solo para saber por dónde iba la cosa.\nconst textoParaMaria = contexto\n  ? (historial + avisoFichas + '[CONTEXTO: este cliente llega desde este anuncio o saludo: \"'\n      + contexto + '\"]\\n\\n' + textoCliente)\n  : (historial + (avisoFichas ? avisoFichas + '\\n' : '') + textoCliente);\n\nreturn [{\n  json: {\n    ...base,\n    texto_acumulado: textoCliente,\n    contexto_detectado: contexto,\n    origen_contexto: origen,\n    historial_chars: historial.length,\n    historial_mensajes: cuerpo.length,\n    texto_para_maria: textoParaMaria\n  }\n}];\n"
       },
       "id": "f1000000-0000-4000-8000-000000000008",
@@ -1149,7 +1125,7 @@
           "conditions": [
             {
               "id": "cond-es-pedido",
-              "leftValue": "={{ String($('AI Agent').item.json.output || '').includes('[PEDIDO]') || ( ($('¿Esperando datos?').first().json.esperando || 0) > 0 && !String($('Añadir contexto').first().json.texto_acumulado || '').includes('?') && ( /\\d/.test(String($('Añadir contexto').first().json.texto_acumulado || '')) || String($('Añadir contexto').first().json.texto_acumulado || '').trim().split(/\\s+/).length >= 3 ) ) }}",
+              "leftValue": "={{ String($('AI Agent').item.json.output || '').includes('[PEDIDO]') }}",
               "rightValue": "",
               "operator": {
                 "type": "boolean",
@@ -3294,6 +3270,41 @@
           }
         }
       }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/conversaciones?cliente_id=eq.{{ $('Variables').first().json.numero_cliente }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ escalada_en: new Date().toISOString(), escalada_motivo: String($('Preparar aviso').item.json.motivo || '').slice(0, 300) }) }}",
+        "options": {}
+      },
+      "id": "marcar-escalada-supabase",
+      "name": "Marcar escalada",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2560,
+        1152
+      ]
     }
   ],
   "connections": {
@@ -3630,17 +3641,6 @@
       "main": [
         [
           {
-            "node": "¿Esperando datos?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "¿Esperando datos?": {
-      "main": [
-        [
-          {
             "node": "Leer conversación",
             "type": "main",
             "index": 0
@@ -3835,6 +3835,11 @@
           },
           {
             "node": "Fila incidencia",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Marcar escalada",
             "type": "main",
             "index": 0
           }
