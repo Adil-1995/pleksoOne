@@ -13,6 +13,23 @@ import {
   ETIQUETA_ESTADO, CICLO_PEDIDO, PINTA_PEDIDO,
 } from '@/lib/productos'
 import { escaladaAbierta, type Conversacion, type EstadoProducto } from '@/tipos'
+import { useOrdenBarra } from '@/hooks/useOrdenBarra'
+import { BarraOrdenable, Reordenable } from './BarraOrdenable'
+
+/**
+ * El orden de fábrica de los iconos de la tira.
+ *
+ * Es la lista COMPLETA de los que se pueden recolocar, y hace de referencia
+ * para lo guardado: un id que ya no esté aquí se descarta, y uno nuevo se
+ * añade al final aunque tengas un orden guardado de antes. Así, añadir un
+ * filtro mañana no se lo esconde a quien ya haya recolocado los suyos.
+ */
+const ORDEN_POR_DEFECTO = [
+  'bandeja:bandeja', 'bandeja:favoritas', 'bandeja:silenciadas', 'bandeja:bloqueadas',
+  'etiquetas', 'producto', 'canal',
+  'pedido:pendiente', 'pedido:validado',
+  'sinleer', 'escaladas',
+]
 
 /**
  * Bandejas y filtros.
@@ -40,6 +57,9 @@ export function FiltrosLista({ conversaciones }: { conversaciones: Conversacion[
   } = useUI()
   const { data: etiquetas } = useEtiquetas()
   const { data: canales } = useCanales()
+  // El orden de los iconos, por usuario. Ver useOrdenBarra: vive en
+  // user_metadata, así que es el mismo en el móvil y en el PC.
+  const { orden: ordenBarra, guardar: guardarOrden } = useOrdenBarra(ORDEN_POR_DEFECTO)
   const { canalId: canalGuardado, guardar: guardarCanal, cargado: canalCargado } = useCanalPorDefecto()
 
   // Solo se ofrecen canales que tengan conversaciones o estÃ©n activos: uno
@@ -160,6 +180,7 @@ export function FiltrosLista({ conversaciones }: { conversaciones: Conversacion[
         <div className="flex items-stretch">
           <div className="min-w-0 flex-1">
             <TiraDesplazable separador={false}>
+              <BarraOrdenable orden={ordenBarra} alSoltar={guardarOrden}>
 
               {BANDEJAS.map(({ id, icono: Icono, texto, cuenta }) => {
                 if ((id === 'silenciadas' || id === 'bloqueadas') && cuenta === 0 && bandeja !== id) return null
@@ -170,8 +191,8 @@ export function FiltrosLista({ conversaciones }: { conversaciones: Conversacion[
                 // volver a la fila de cifras que nadie leÃ­a.
                 const verCuenta = id === 'bandeja' || puesta
                 return (
+                  <Reordenable key={id} id={'bandeja:' + id}>
                   <button
-                    key={id}
                     onClick={() => setBandeja(id)}
                     title={texto + ' (' + cuenta + ')'}
                     aria-label={texto}
@@ -184,6 +205,7 @@ export function FiltrosLista({ conversaciones }: { conversaciones: Conversacion[
                     <Icono className={['h-4 w-4', id === 'favoritas' && puesta ? 'fill-current' : ''].join(' ')} />
                     {verCuenta && cuenta > 0 && <span className="tabular-nums">{cuenta}</span>}
                   </button>
+                  </Reordenable>
                 )
               })}
 
@@ -192,6 +214,7 @@ export function FiltrosLista({ conversaciones }: { conversaciones: Conversacion[
                   con la lÃ­nea plegada si hay una etiqueta filtrando: si no,
                   el filtro seguirÃ­a puesto sin nada que lo delatara. */}
               {(etiquetas ?? []).length > 0 && (
+                <Reordenable id="etiquetas">
                 <button
                   onClick={alternarEtiquetas}
                   title={etiquetasAbiertas ? 'Ocultar las etiquetas' : 'Ver las etiquetas'}
@@ -206,12 +229,14 @@ export function FiltrosLista({ conversaciones }: { conversaciones: Conversacion[
                 >
                   <Tag className="h-4 w-4" />
                 </button>
+                </Reordenable>
               )}
 
               {/* El producto es lo Ãºnico que no puede ser un icono a secas:
                   hay cuatro y no se distinguen por dibujo. Desplegable, pero
                   colapsado al icono mientras no haya ninguno elegido. */}
               {productos.length > 0 && (
+                <Reordenable id="producto">
                 <label className="relative flex shrink-0 items-center" title="Filtrar por producto">
                   <Boxes className={[
                     'pointer-events-none absolute left-2 h-4 w-4',
@@ -232,6 +257,7 @@ export function FiltrosLista({ conversaciones }: { conversaciones: Conversacion[
                     ))}
                   </select>
                 </label>
+                </Reordenable>
               )}
 
               {/*
@@ -249,6 +275,7 @@ export function FiltrosLista({ conversaciones }: { conversaciones: Conversacion[
                 del mismo tamaÃ±o que los otros cuatro.
               */}
               {canalesVisibles.length > 1 && (
+                <Reordenable id="canal">
                 <label className="relative flex shrink-0 items-center" title="Filtrar por canal">
                   <span
                     className={[
@@ -282,6 +309,7 @@ export function FiltrosLista({ conversaciones }: { conversaciones: Conversacion[
                     ))}
                   </select>
                 </label>
+                </Reordenable>
               )}
 
               {/* Los dos carritos. El color ES el filtro: amarillo lo que la
@@ -290,8 +318,8 @@ export function FiltrosLista({ conversaciones }: { conversaciones: Conversacion[
                   siempre darÃ­a cero no merece sitio en la tira. */}
               {([['pendiente', conPendiente], ['validado', conValidado]] as const).map(
                 ([est, cuenta]) => cuenta === 0 && pedidoFiltro !== est ? null : (
+                  <Reordenable key={est} id={'pedido:' + est}>
                   <button
-                    key={est}
                     onClick={() => setPedidoFiltro(pedidoFiltro === est ? null : est)}
                     title={PINTA_PEDIDO[est].texto + ' (' + cuenta + ')\n' + PINTA_PEDIDO[est].detalle}
                     aria-label={PINTA_PEDIDO[est].texto}
@@ -306,6 +334,7 @@ export function FiltrosLista({ conversaciones }: { conversaciones: Conversacion[
                     <ShoppingCart className="h-4 w-4" />
                     {pedidoFiltro === est && <span className="tabular-nums">{cuenta}</span>}
                   </button>
+                  </Reordenable>
                 ),
               )}
 
@@ -334,6 +363,7 @@ export function FiltrosLista({ conversaciones }: { conversaciones: Conversacion[
                 mirar. Con cero se queda apagado y sin nÃºmero: dice Â«todo
                 leÃ­doÂ», que tambiÃ©n es una respuesta.
               */}
+              <Reordenable id="sinleer">
               <button
                 onClick={() => setSoloNoLeidas(!soloNoLeidas)}
                 title={'Sin leer (' + conNoLeidas + ')\n' +
@@ -352,6 +382,7 @@ export function FiltrosLista({ conversaciones }: { conversaciones: Conversacion[
                 <Mail className="h-4 w-4" />
                 {conNoLeidas > 0 && <span className="tabular-nums">{conNoLeidas}</span>}
               </button>
+              </Reordenable>
 
               {/*
                 ESCALADAS, pegado al de sin leer. Los dos contestan a Â«Â¿tengo
@@ -377,6 +408,7 @@ export function FiltrosLista({ conversaciones }: { conversaciones: Conversacion[
                 de uno roto, y cero aquÃ­ es una respuesta que se quiere leer
                 â€”Â«no hay nadie esperandoÂ»â€”, no una ausencia.
               */}
+              <Reordenable id="escaladas">
               <button
                 onClick={() => setSoloEscaladas(!soloEscaladas)}
                 title={'Escaladas (' + conEscalada + ')\n' +
@@ -395,6 +427,8 @@ export function FiltrosLista({ conversaciones }: { conversaciones: Conversacion[
                 <AlertTriangle className="h-4 w-4" />
                 {conEscalada > 0 && <span className="tabular-nums">{conEscalada}</span>}
               </button>
+              </Reordenable>
+              </BarraOrdenable>
             </TiraDesplazable>
           </div>
 
