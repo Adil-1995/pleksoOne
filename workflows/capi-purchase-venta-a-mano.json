@@ -1,0 +1,1175 @@
+{
+  "name": "LumaBot — Purchase al CAPI (validación) — PROD",
+  "nodes": [
+    {
+      "name": "Petición del inbox",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -820,
+        300
+      ],
+      "id": "wh-capi-purchase",
+      "webhookId": "capi-purchase-wh",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "capi-purchase",
+        "responseMode": "responseNode",
+        "options": {}
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Se saca el token y se guarda el cuerpo para despues.\nconst cab = $json.headers || {};\nconst auth = String(cab.authorization || cab.Authorization || '');\nconst token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';\n\nreturn [{ json: {\n  token,\n  hay_cabecera: auth.length > 0,\n  body: $json.body || {},\n} }];"
+      },
+      "id": "e5000000-0000-4000-8000-000000000002",
+      "name": "Sacar el token",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -600,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/auth/v1/user",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $json.token }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "neverError": true,
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput",
+      "id": "e5000000-0000-4000-8000-000000000003",
+      "name": "Verificar sesión en Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -380,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Supabase es la autoridad. Comprobado empiricamente:\n//   token real           -> 200 + el usuario\n//   token inventado      -> 403\n//   sin token            -> 403\n//   exp manipulado       -> 403  (cambiar el payload rompe la firma)\n\nconst r = $json || {};\nconst codigo = r.statusCode || 0;\nlet cuerpo = r.body;\nif (typeof cuerpo === 'string') { try { cuerpo = JSON.parse(cuerpo); } catch (e) {} }\n\nconst previo = $('Sacar el token').first().json;\n\nlet valido = false;\nlet motivo = \"\";\n\nif (!previo.hay_cabecera) {\n  motivo = \"falta la cabecera Authorization\";\n} else if (!previo.token) {\n  motivo = \"la cabecera no es del tipo Bearer\";\n} else if (codigo !== 200) {\n  motivo = \"sesión no válida o caducada (Supabase devolvió \" + codigo + \")\";\n} else if (!cuerpo || !cuerpo.id) {\n  motivo = \"Supabase respondió 200 pero sin usuario\";\n} else if (cuerpo.role !== 'authenticated') {\n  motivo = \"el usuario no tiene rol authenticated\";\n} else {\n  valido = true;\n}\n\nreturn [{ json: {\n  veredicto: valido ? 'ok' : 'no',\n  motivo,\n  usuario_id: (cuerpo && cuerpo.id) || null,\n  usuario_email: (cuerpo && cuerpo.email) || null,\n  body: previo.body,\n} }];"
+      },
+      "id": "e5000000-0000-4000-8000-000000000004",
+      "name": "Comprobar sesión",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -160,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "v1",
+              "leftValue": "={{ $json.veredicto }}",
+              "rightValue": "ok",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "e5000000-0000-4000-8000-000000000005",
+      "name": "¿Sesión válida?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        60,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, error: \"no autorizado\", motivo: $json.motivo }) }}",
+        "options": {
+          "responseCode": 401
+        }
+      },
+      "id": "e5000000-0000-4000-8000-000000000006",
+      "name": "Responder 401",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        60,
+        560
+      ]
+    },
+    {
+      "name": "Tomar el cerrojo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        300,
+        300
+      ],
+      "id": "n-tomarelcerrojo",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/capi_tomar",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_conversacion_id: $('Sacar el token').first().json.body.conversacion_id }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "¿Tomé algo?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        300
+      ],
+      "id": "n-tomalgo",
+      "parameters": {
+        "jsCode": "// capi_tomar() devuelve SOLO las lineas que acaba de tomar. Cero filas no\n// es un error: o ya se reporto, o no hay nada validado nuevo. Se sale en\n// 200 y en silencio, que es lo que pasa cuando validas dos veces seguidas.\nconst r = $json || {};\nlet c = r.body;\nif (typeof c === 'string') { try { c = JSON.parse(c); } catch (e) {} }\nconst lineas = Array.isArray(c) ? c : [];\nconst conv = $('Sacar el token').first().json.body.conversacion_id;\nreturn [{ json: {\n  conversacion_id: conv,\n  lineas,\n  hay: lineas.length ? 'si' : 'no',\n  ids: lineas.map(function (l) { return l.id; }),\n} }];"
+      }
+    },
+    {
+      "name": "¿Hay líneas?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        740,
+        300
+      ],
+      "id": "n-haylneas",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.hay }}",
+              "rightValue": "si",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Responder: nada que reportar",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        740,
+        560
+      ],
+      "id": "n-respondernadaquereportar",
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, enviado: false, motivo: 'nada nuevo que reportar' }) }}",
+        "options": {}
+      }
+    },
+    {
+      "name": "Leer conversación y canal",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        960,
+        300
+      ],
+      "id": "n-leerconversacinycanal",
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/conversaciones?id=eq.{{ $json.conversacion_id }}&select=cliente_id,ctwa_clid,canal_id,canales(waba_id,dataset_id,nombre),conversacion_productos(id,validado_en)",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Construir evento",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1180,
+        300
+      ],
+      "id": "n-construirevento",
+      "parameters": {
+        "jsCode": "// SHA-256 en JavaScript puro: n8n bloquea el módulo 'crypto'\nfunction sha256(msg) {\n  function rotr(n,x){return (x>>>n)|(x<<(32-n));}\n  function ch(x,y,z){return (x&y)^(~x&z);}\n  function maj(x,y,z){return (x&y)^(x&z)^(y&z);}\n  function s0(x){return rotr(2,x)^rotr(13,x)^rotr(22,x);}\n  function s1(x){return rotr(6,x)^rotr(11,x)^rotr(25,x);}\n  function g0(x){return rotr(7,x)^rotr(18,x)^(x>>>3);}\n  function g1(x){return rotr(17,x)^rotr(19,x)^(x>>>10);}\n  const K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,\n  0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,\n  0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,\n  0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,\n  0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,\n  0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,\n  0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,\n  0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];\n  let H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];\n  const bytes=[];\n  for(const cp of unescape(encodeURIComponent(msg))) bytes.push(cp.charCodeAt(0));\n  const bitLen=bytes.length*8;\n  bytes.push(0x80);\n  while(bytes.length%64!==56) bytes.push(0);\n  for(let i=7;i>=0;i--) bytes.push((bitLen/Math.pow(2,i*8))&0xff);\n  for(let b=0;b<bytes.length;b+=64){\n    const w=new Array(64);\n    for(let i=0;i<16;i++) w[i]=(bytes[b+i*4]<<24)|(bytes[b+i*4+1]<<16)|(bytes[b+i*4+2]<<8)|bytes[b+i*4+3];\n    for(let i=16;i<64;i++) w[i]=(g1(w[i-2])+w[i-7]+g0(w[i-15])+w[i-16])|0;\n    let a=H[0],bb=H[1],cc=H[2],dd=H[3],e=H[4],f=H[5],g=H[6],h=H[7];\n    for(let i=0;i<64;i++){\n      const t1=(h+s1(e)+ch(e,f,g)+K[i]+w[i])|0;\n      const t2=(s0(a)+maj(a,bb,cc))|0;\n      h=g;g=f;f=e;e=(dd+t1)|0;dd=cc;cc=bb;bb=a;a=(t1+t2)|0;\n    }\n    H=[(H[0]+a)|0,(H[1]+bb)|0,(H[2]+cc)|0,(H[3]+dd)|0,(H[4]+e)|0,(H[5]+f)|0,(H[6]+g)|0,(H[7]+h)|0];\n  }\n  return H.map(x=>((x>>>0).toString(16).padStart(8,'0'))).join('');\n}\n\n\nconst previo = $('¿Tomé algo?').first().json;\nconst r = $json || {};\nlet c = r.body;\nif (typeof c === 'string') { try { c = JSON.parse(c); } catch (e) {} }\nconst conv = Array.isArray(c) && c.length ? c[0] : null;\nconst canal = conv && conv.canales ? (Array.isArray(conv.canales) ? conv.canales[0] : conv.canales) : null;\n\nconst fallos = [];\nif (!conv) fallos.push('no se pudo leer la conversacion');\nconst clid = conv ? String(conv.ctwa_clid || '') : '';\nif (!clid) fallos.push('sin ctwa_clid: el cliente no vino de un anuncio');\nconst waba = canal ? String(canal.waba_id || '') : '';\nif (!waba) fallos.push('el canal de la conversacion no tiene waba_id');\n\n// El dataset SALE DEL CANAL, no del entorno. Un dataset de mensajeria\n// pertenece a una WABA: mandar el evento al de otra da 100/2804132 y se\n// pierde la venta en una ejecucion verde. Aqui no hay repliegue a\n// $env.CAPI_DATASET a proposito -- con dos canales, un valor por defecto\n// acierta por azar en uno y miente en el otro. Sin dataset_id no se envia.\nconst dataset = canal ? String(canal.dataset_id || '') : '';\nif (!dataset) fallos.push('el canal de la conversacion no tiene dataset_id (ver 15-dataset-por-canal.sql)');\n\n// UNA CONVERSACION = UNA VENTA. La tabla tiene una fila por producto, asi\n// que un pedido de dos articulos son dos lineas pero UN evento, sumado.\n// Si a UNA sola linea le falta el precio del catalogo NO sale nada: un\n// value incompleto es peor que un evento perdido, porque Meta optimiza\n// con ese numero y no hay forma de saber que estaba mal.\nlet valor = 0, unidades = 0;\nfor (const l of previo.lineas) {\n  if (l.precio === null || l.precio === undefined) {\n    fallos.push('la linea \"' + l.producto + '\" no tiene precio del catalogo');\n    continue;\n  }\n  const cant = parseInt(l.cantidad, 10) || 1;\n  valor += parseFloat(l.precio) * cant;\n  unidades += cant;\n}\nif (valor <= 0) fallos.push('el importe sale 0');\n\n// event_id ESTABLE: el mismo pedido da siempre el mismo id. Es lo que\n// permite reintentar sin contar doble, porque Meta deduplica por event_id.\n// Con Date.now() cambiaria en cada intento y la deduplicacion no serviria.\nconst minId = Math.min.apply(null, previo.ids);\nconst event_id = 'pedido-' + previo.conversacion_id + '-' + minId;\n\nif (fallos.length) {\n  return [{ json: { puede: 'no', motivo: fallos.join(' · '), ids: previo.ids, event_id } }];\n}\n\n// CUANDO ocurrio la venta, no cuando se manda el evento. Con Date.now()\n// un reintento de una venta de anteayer se le reportaba a Meta como de hoy\n// y desplazaba la venta de dia en los informes. En el camino normal los dos\n// valores estan a segundos, asi que esto solo cambia algo en los reintentos.\n//\n// Se coge el MINIMO de las lineas tomadas, igual que el event_id coge el\n// minimo de los ids: un pedido de dos articulos es UNA venta, con el momento\n// en que se valido.\n//\n// Si no hay fecha se cae a ahora y se DICE en el aviso. Callarlo seria\n// mandar una fecha inventada, que es justo lo que se esta arreglando.\nconst tomadas = new Set(previo.ids.map(Number));\nconst fechas = ((conv && conv.conversacion_productos) || [])\n  .filter(function (l) { return tomadas.has(Number(l.id)) && l.validado_en; })\n  .map(function (l) { return Date.parse(l.validado_en); })\n  .filter(function (t) { return !isNaN(t); });\n\nlet event_time, fecha_origen;\nif (fechas.length) {\n  event_time = Math.floor(Math.min.apply(null, fechas) / 1000);\n  fecha_origen = 'validado_en';\n} else {\n  event_time = Math.floor(Date.now() / 1000);\n  fecha_origen = 'AHORA (no se pudo leer validado_en)';\n}\n\n// Meta rechaza los Purchase de mas de 7 dias. No se recorta la fecha para\n// colarlos: se prefiere perder el evento a mover la venta de dia.\nconst dias = (Date.now() / 1000 - event_time) / 86400;\n\n// Y AQUI SE DESCARTA DE VERDAD. Hasta el 3/9/2026 esto solo se calculaba:\n// el comentario de arriba decia lo correcto y el codigo no lo cumplia, asi\n// que un Purchase de hace dos semanas salia igual hacia Meta.\n//\n// Va aqui, y no arriba con los otros `fallos`, porque event_time no existe\n// hasta unas lineas mas arriba. Sale por el mismo camino que el resto de\n// fallos: 'Motivo del fallo' -> 'Cerrar con fallo' suelta el cerrojo y\n// apunta el motivo, y la linea se queda visible en \"validados sin reportar\".\n//\n// El umbral es 7 dias EXACTOS, el limite real de Meta. No se recorta antes\n// por prudencia: eso tiraria ventas recuperables sin que nadie lo pidiera.\n// Una linea que llegue a 6,9 dias saldra, y si Meta la rechaza se vera.\nif (dias > 7) {\n  return [{ json: { puede: 'no', ids: previo.ids, event_id,\n    motivo: 'fuera de la ventana de 7 dias del CAPI: ' +\n            (Math.round(dias * 10) / 10) + ' dias de antiguedad (fecha de ' +\n            fecha_origen + ')' } }];\n}\n\nconst evento = {\n  data: [{\n    event_name: 'Purchase',\n    event_time: event_time,\n    action_source: 'business_messaging',\n    messaging_channel: 'whatsapp',\n    event_id: event_id,\n    user_data: {\n      ctwa_clid: clid,\n      whatsapp_business_account_id: waba,\n      ph: [sha256(String(conv.cliente_id).replace(/\\D/g, '').trim())]\n    },\n    custom_data: {\n      currency: 'MXN',\n      value: Math.round(valor * 100) / 100,\n      num_items: unidades,\n      content_name: previo.lineas.map(function (l) { return l.producto; }).join(' + '),\n      order_id: event_id\n    }\n  }]\n};\n\n// El codigo de prueba sale del ENTORNO, no del workflow: se pone en\n// wa.env para la primera prueba y se quita despues sin volver a publicar.\nif ($env.CAPI_TEST_CODE) evento.test_event_code = $env.CAPI_TEST_CODE;\n\nreturn [{ json: { puede: 'si', evento, event_id, valor, unidades, ids: previo.ids,\n                  canal: canal ? canal.nombre : null, dataset_id: dataset,\n                  prueba: $env.CAPI_TEST_CODE || null,\n                  event_time, fecha_origen, dias_de_antiguedad: Math.round(dias * 10) / 10 } }];"
+      }
+    },
+    {
+      "name": "¿Se puede enviar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1400,
+        300
+      ],
+      "id": "n-sepuedeenviar",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.puede }}",
+              "rightValue": "si",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Enviar a Meta CAPI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1620,
+        180
+      ],
+      "id": "n-enviarametacapi",
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/{{ $env.WA_API_VERSION }}/{{ $json.dataset_id }}/events",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "access_token",
+              "value": "={{ $env.CAPI_TOKEN }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.evento) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "¿Meta lo aceptó?",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1840,
+        180
+      ],
+      "id": "n-metaloacept",
+      "parameters": {
+        "jsCode": "// neverError esta puesto para poder LEER el cuerpo del rechazo, no para\n// tragarselo: aqui se decide explicitamente y el fallo acaba en Telegram\n// y en capi_error. Un 4xx de Meta no puede pasar por exito.\nconst r = $json || {};\nconst codigo = r.statusCode || 0;\nlet c = r.body;\nif (typeof c === 'string') { try { c = JSON.parse(c); } catch (e) {} }\nconst prev = $('Construir evento').first().json;\nconst ok = codigo >= 200 && codigo < 300 && c && c.events_received >= 1;\nlet motivo = null;\nif (!ok) {\n  const e = c && c.error;\n  motivo = e\n    ? ((e.error_user_msg || e.message) + ' (code ' + e.code + (e.error_subcode ? '/' + e.error_subcode : '') + ')')\n    : ('respuesta inesperada de Meta, http ' + codigo);\n}\nreturn [{ json: { veredicto: ok ? 'si' : 'no', motivo, ids: prev.ids,\n  event_id: prev.event_id, valor: prev.valor, unidades: prev.unidades,\n  recibidos: c && c.events_received, prueba: prev.prueba } }];"
+      }
+    },
+    {
+      "name": "¿Fue bien?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        2060,
+        180
+      ],
+      "id": "n-fuebien",
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.veredicto }}",
+              "rightValue": "si",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "name": "Cerrar con éxito",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2280,
+        60
+      ],
+      "id": "n-cerrarconxito",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/capi_cerrar",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_ids: $json.ids, p_ok: true, p_error: null }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "name": "Responder: enviado",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        2500,
+        60
+      ],
+      "id": "n-responderenviado",
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, enviado: true, event_id: $('¿Meta lo aceptó?').first().json.event_id, valor: $('¿Meta lo aceptó?').first().json.valor, prueba: $('¿Meta lo aceptó?').first().json.prueba }) }}",
+        "options": {}
+      }
+    },
+    {
+      "name": "Motivo del fallo",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1620,
+        480
+      ],
+      "id": "n-motivodelfallo",
+      "parameters": {
+        "jsCode": "// Un SOLO sitio decide el texto del error, venga de 'no se pudo construir\n// el evento' o de un rechazo de Meta. Asi el aviso de Telegram y la\n// columna capi_error dicen exactamente lo mismo y no hay que cruzarlos.\nconst j = $json || {};\nreturn [{ json: {\n  ids: j.ids || [],\n  motivo: j.motivo || 'motivo desconocido',\n  event_id: j.event_id || null,\n  origen: j.veredicto === 'no' ? 'Meta lo rechazo' : 'no se pudo construir el evento',\n} }];"
+      }
+    },
+    {
+      "name": "Cerrar con fallo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1840,
+        480
+      ],
+      "id": "n-cerrarconfallo",
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/rpc/capi_cerrar",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ p_ids: $json.ids, p_ok: false, p_error: $json.origen + ': ' + $json.motivo }) }}",
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true
+            }
+          }
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "name": "Avisar a Incidencias",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2060,
+        480
+      ],
+      "id": "n-avisaraincidencias",
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TG_INCIDENCIAS_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $env.TG_INCIDENCIAS_CHAT, text: 'PURCHASE NO REPORTADO A META' + String.fromCharCode(10) + 'conversacion: ' + $('Sacar el token').first().json.body.conversacion_id + String.fromCharCode(10) + 'event_id: ' + ($('Motivo del fallo').first().json.event_id || '(sin id)') + String.fromCharCode(10) + 'motivo: ' + $('Motivo del fallo').first().json.motivo + String.fromCharCode(10) + 'El cerrojo se ha soltado: se reintenta volviendo a validar.' }) }}",
+        "options": {}
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "name": "Responder: no enviado",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        2280,
+        480
+      ],
+      "id": "n-respondernoenviado",
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, enviado: false, motivo: $('Motivo del fallo').first().json.motivo }) }}",
+        "options": {}
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/conversaciones?id=eq.{{ $('Sacar el token').first().json.body.conversacion_id }}&select=id,cliente_id,nombre,canales(catalogo_hoja),conversacion_productos(id,producto,estado,precio,cantidad,validado_en)",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "id": "venta-leer",
+      "name": "Leer venta a mano",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        60,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "documentId": {
+          "__rl": true,
+          "value": "1NKp7pJ-Fx-yE8IKM-Kgy_cB7d9ToVd6ECyNybDteUPQ",
+          "mode": "list",
+          "cachedResultName": "Pedidos MX Whatsapp Glowbrush Auto",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1NKp7pJ-Fx-yE8IKM-Kgy_cB7d9ToVd6ECyNybDteUPQ/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "={{ ($('Leer venta a mano').first().json.body[0]?.canales?.catalogo_hoja) || 'Productos' }}",
+          "mode": "name"
+        },
+        "options": {}
+      },
+      "id": "venta-catalogo",
+      "name": "Leer catálogo de la venta",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        280,
+        40
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "aRfirRPV9iB2zikq",
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/mensajes?cliente_id=eq.{{ $('Leer venta a mano').first().json.body[0].cliente_id }}&direccion=eq.in&order=creado.desc&limit=25&select=texto,creado",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "id": "venta-mensajes",
+      "name": "Leer datos del cliente",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        500,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT count(*)::int AS ya_esta FROM pedidos WHERE telefono LIKE $1;",
+        "options": {
+          "queryReplacement": "={{ [ '%' + String($('Leer venta a mano').first().json.body[0].cliente_id).replace(/\\D/g,'').slice(-10) ] }}"
+        }
+      },
+      "id": "venta-ya-esta",
+      "name": "¿Ya hay pedido?",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        720,
+        40
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "gAfz3X2t0Fnirf7w",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// PREPARAR VENTA A MANO\n//\n// Decide si hay que apuntar la venta que acaba de validar una persona, y con\n// qué datos. No escribe nada: solo decide y deja dicho lo que ha supuesto.\n\nconst conv = (function () {\n  const r = $('Leer venta a mano').first().json || {};\n  let c = r.body;\n  if (typeof c === 'string') { try { c = JSON.parse(c); } catch (e) {} }\n  if (!Array.isArray(c) || !c.length) {\n    throw new Error('Venta a mano: no encuentro la conversación ' +\n      $('Sacar el token').first().json.body.conversacion_id);\n  }\n  return c[0];\n})();\n\n// Las líneas que una PERSONA ha validado. «validado_en» es lo que distingue\n// una validación humana de una fila que puso el flujo.\nconst lineas = (conv.conversacion_productos || [])\n  .filter(function (l) { return l.estado === 'validado' && l.validado_en; });\n\nconst yaEsta = (($('¿Ya hay pedido?').first().json || {}).ya_esta || 0) > 0;\n\n// ---------- PRECIO DEL CATÁLOGO, NUNCA DE OTRO SITIO ----------\n// Misma regla que «Preparar pedido» del receptor: el precio sale del Sheet.\n// Sin precio no se apunta nada, porque un importe inventado se va al CAPI y\n// Meta optimiza con él.\nfunction precioDe(idProducto) {\n  for (const item of $('Leer catálogo de la venta').all()) {\n    const fila = item.json;\n    if (String(fila.id || '').trim() !== String(idProducto).trim()) continue;\n    const n = String(fila.precio || '').replace(/[^0-9.]/g, '');\n    return n === '' ? null : parseFloat(n);\n  }\n  return null;\n}\nfunction nombreDe(idProducto) {\n  for (const item of $('Leer catálogo de la venta').all()) {\n    const fila = item.json;\n    if (String(fila.id || '').trim() === String(idProducto).trim()) {\n      return String(fila.nombre || idProducto);\n    }\n  }\n  return String(idProducto);\n}\n\n// ---------- LOS DATOS DE ENVÍO ----------\n// Del último mensaje ENTRANTE que parezca una dirección. Se exigen dos\n// señales de las que se le piden al cliente (calle, entre, colonia, CP...)\n// además de dígitos y 8+ palabras: con menos, «El de 12 luces pero cuánto\n// tarda» pasaría por dirección.\nconst SENALES = [\n  /\\bcalle\\b/i, /\\bcolonia\\b|\\bcol\\.?\\s/i, /\\bentre\\b/i,\n  /\\bc\\.?\\s?p\\.?\\s*\\d{4,5}\\b/i, /#\\s*\\d/, /\\bav\\.?\\b|\\bavenida\\b/i,\n  /\\bnombre\\s*:/i, /\\bmunicipio\\b/i, /\\bn[uú]m(ero)?\\.?\\s*\\d/i,\n  /\\bint(erior)?\\.?\\s*\\d/i, /\\bfracc/i, /\\bmz\\b|\\bmanzana\\b/i,\n];\nfunction pareceDireccion(t) {\n  const s = String(t || '');\n  if (s.includes('?')) return false;\n  if (!/\\d/.test(s)) return false;\n  if (s.trim().split(/\\s+/).length < 8) return false;\n  let n = 0;\n  for (const r of SENALES) if (r.test(s)) n++;\n  return n >= 2;\n}\n\nlet datosCliente = '';\nlet deQueMensaje = '';\n(function () {\n  const r = $('Leer datos del cliente').first().json || {};\n  let c = r.body;\n  if (typeof c === 'string') { try { c = JSON.parse(c); } catch (e) {} }\n  if (!Array.isArray(c)) return;\n  for (const m of c) {                    // vienen del más nuevo al más viejo\n    if (pareceDireccion(m.texto)) {\n      datosCliente = String(m.texto);\n      deQueMensaje = String(m.creado || '').slice(0, 16).replace('T', ' ');\n      return;\n    }\n  }\n})();\n\n// ---------- La decisión ----------\nlet accion = 'nada';\nlet motivo = '';\nconst suposiciones = [];\n\nif (!lineas.length) {\n  accion = 'nada';\n  motivo = 'ninguna línea validada por una persona';\n} else if (yaEsta) {\n  accion = 'nada';\n  motivo = 'esta venta ya está apuntada en pedidos';\n} else {\n  const sinPrecio = lineas.filter(function (l) { return precioDe(l.producto) === null; });\n  if (sinPrecio.length) {\n    accion = 'avisar';\n    motivo = 'el catálogo no tiene precio para: ' +\n      sinPrecio.map(function (l) { return l.producto; }).join(', ');\n  } else {\n    accion = 'apuntar';\n    suposiciones.push('CANTIDAD = 1 por defecto (nadie la dijo)');\n    if (datosCliente) {\n      suposiciones.push('DATOS sacados del mensaje del cliente de las ' + deQueMensaje);\n    } else {\n      suposiciones.push('SIN DATOS DE ENVÍO: no hay ningún mensaje suyo que parezca una dirección');\n    }\n  }\n}\n\n// ---------- La fila de pedidos ----------\nconst CANTIDAD_POR_DEFECTO = 1;\nconst importe = lineas.reduce(function (t, l) {\n  const p = precioDe(l.producto);\n  return t + (p === null ? 0 : p * CANTIDAD_POR_DEFECTO);\n}, 0);\n\nconst nombres = lineas.map(function (l) { return nombreDe(l.producto); }).join(' + ');\n\n// ---------- El aviso ----------\n// Dice SIEMPRE lo que se ha supuesto. Un valor por defecto que no se anuncia\n// es un dato inventado con otro nombre.\nconst aviso = [\n  accion === 'apuntar' ? '🧾 VENTA APUNTADA A MANO' : '⚠️ VENTA A MANO SIN APUNTAR',\n  '',\n  '📱 Cliente: ' + conv.cliente_id + (conv.nombre ? '  (' + conv.nombre + ')' : ''),\n  '📦 Producto: ' + (nombres || '—'),\n  '💵 Importe: $' + importe + '  MXN',\n  '',\n  accion === 'apuntar'\n    ? '⚠️ Revisa esto, que lo he supuesto yo:\\n   · ' + suposiciones.join('\\n   · ')\n    : '❌ No se ha apuntado: ' + motivo,\n  '',\n  datosCliente ? '📍 Datos de envío:\\n' + datosCliente : '📍 Sin datos de envío en la conversación',\n].join('\\n');\n\nreturn [{ json: {\n  accion,\n  motivo,\n  suposiciones,\n  hay_algo_que_decir: accion !== 'nada',\n  se_puede_apuntar: accion === 'apuntar',\n  // Para la fila de pedidos, en el mismo orden que «Guardar pedido»\n  telefono: conv.cliente_id,\n  nombre_wa: conv.nombre || '',\n  producto: nombres,\n  cantidad: String(CANTIDAD_POR_DEFECTO),\n  precio: String(importe),\n  datos_cliente: datosCliente || '(no se encontró en la conversación)',\n  // Para rellenar las líneas, que es lo que desbloquea el CAPI\n  ids_lineas: lineas.map(function (l) { return l.id; }),\n  precio_unitario: lineas.length ? precioDe(lineas[0].producto) : null,\n  aviso,\n} }];"
+      },
+      "id": "venta-preparar",
+      "name": "Preparar venta a mano",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        940,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "hay-algo",
+              "leftValue": "={{ $json.hay_algo_que_decir }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "venta-hay-algo",
+      "name": "¿Hay venta que apuntar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1160,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "se-puede",
+              "leftValue": "={{ $json.se_puede_apuntar }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "venta-se-puede",
+      "name": "¿Se puede apuntar?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1380,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO pedidos (telefono, nombre_wa, producto, cantidad, precio, datos_cliente)\nVALUES ($1, $2, $3, $4, $5, $6)\nRETURNING id;",
+        "options": {
+          "queryReplacement": "={{ [ $json.telefono, $json.nombre_wa, $json.producto, $json.cantidad, $json.precio, $json.datos_cliente ] }}"
+        }
+      },
+      "id": "venta-apuntar",
+      "name": "Apuntar venta a mano",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1600,
+        -80
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "gAfz3X2t0Fnirf7w",
+          "name": "Postgres account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/conversacion_productos?id=in.({{ $('Preparar venta a mano').first().json.ids_lineas.join(',') }})",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ precio: $('Preparar venta a mano').first().json.precio_unitario, cantidad: 1 }) }}",
+        "options": {}
+      },
+      "id": "venta-precio",
+      "name": "Rellenar precio y cantidad",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1820,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.telegram.org/bot{{ $env.TG_PEDIDOS_TOKEN }}/sendMessage",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ chat_id: $env.TG_PEDIDOS_CHAT, text: $('Preparar venta a mano').first().json.aviso }) }}",
+        "options": {}
+      },
+      "id": "venta-avisar",
+      "name": "Avisar venta a mano",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2040,
+        40
+      ]
+    }
+  ],
+  "connections": {
+    "Petición del inbox": {
+      "main": [
+        [
+          {
+            "node": "Sacar el token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sacar el token": {
+      "main": [
+        [
+          {
+            "node": "Verificar sesión en Supabase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar sesión en Supabase": {
+      "main": [
+        [
+          {
+            "node": "Comprobar sesión",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Comprobar sesión": {
+      "main": [
+        [
+          {
+            "node": "¿Sesión válida?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Sesión válida?": {
+      "main": [
+        [
+          {
+            "node": "Leer venta a mano",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder 401",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tomar el cerrojo": {
+      "main": [
+        [
+          {
+            "node": "¿Tomé algo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Tomé algo?": {
+      "main": [
+        [
+          {
+            "node": "¿Hay líneas?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay líneas?": {
+      "main": [
+        [
+          {
+            "node": "Leer conversación y canal",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder: nada que reportar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer conversación y canal": {
+      "main": [
+        [
+          {
+            "node": "Construir evento",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Construir evento": {
+      "main": [
+        [
+          {
+            "node": "¿Se puede enviar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Se puede enviar?": {
+      "main": [
+        [
+          {
+            "node": "Enviar a Meta CAPI",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Motivo del fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar a Meta CAPI": {
+      "main": [
+        [
+          {
+            "node": "¿Meta lo aceptó?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Meta lo aceptó?": {
+      "main": [
+        [
+          {
+            "node": "¿Fue bien?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Fue bien?": {
+      "main": [
+        [
+          {
+            "node": "Cerrar con éxito",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Motivo del fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cerrar con éxito": {
+      "main": [
+        [
+          {
+            "node": "Responder: enviado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Motivo del fallo": {
+      "main": [
+        [
+          {
+            "node": "Cerrar con fallo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cerrar con fallo": {
+      "main": [
+        [
+          {
+            "node": "Avisar a Incidencias",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Avisar a Incidencias": {
+      "main": [
+        [
+          {
+            "node": "Responder: no enviado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer venta a mano": {
+      "main": [
+        [
+          {
+            "node": "Leer catálogo de la venta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer catálogo de la venta": {
+      "main": [
+        [
+          {
+            "node": "Leer datos del cliente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer datos del cliente": {
+      "main": [
+        [
+          {
+            "node": "¿Ya hay pedido?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Ya hay pedido?": {
+      "main": [
+        [
+          {
+            "node": "Preparar venta a mano",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Preparar venta a mano": {
+      "main": [
+        [
+          {
+            "node": "¿Hay venta que apuntar?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay venta que apuntar?": {
+      "main": [
+        [
+          {
+            "node": "¿Se puede apuntar?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Tomar el cerrojo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Se puede apuntar?": {
+      "main": [
+        [
+          {
+            "node": "Apuntar venta a mano",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Avisar venta a mano",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apuntar venta a mano": {
+      "main": [
+        [
+          {
+            "node": "Rellenar precio y cantidad",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rellenar precio y cantidad": {
+      "main": [
+        [
+          {
+            "node": "Avisar venta a mano",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Avisar venta a mano": {
+      "main": [
+        [
+          {
+            "node": "Tomar el cerrojo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
