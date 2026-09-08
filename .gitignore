@@ -55,3 +55,14 @@ envio-vivo.json
 capi-receptor.json
 capi-purchase-workflow.json
 build-capi.js
+
+# ── Datos de clientes REALES ─────────────────────────────────────────────
+# Aquí no hay secretos de infraestructura y aun así es lo más delicado del
+# directorio, porque son personas. El CSV del CAPI lleva teléfonos y
+# pedidos; las capturas del inbox llevan números y direcciones enteras a la
+# vista, y una captura no se puede redactar después de subirla.
+#
+# El script que lo genera SÍ sube (exportar-capi-csv.py: lee de wa.env, no
+# guarda credenciales). Lo generado, no.
+ventas-capi.csv
+capturas/
