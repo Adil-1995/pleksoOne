@@ -219,6 +219,61 @@ const VENTANA = 1000
  * VIEJA sin nada pendiente. Para eso está el buscador, que pregunta al
  * servidor y no mira solo lo cargado.
  */
+/** El fallo de PostgREST cuando el embed no existe todavía en el esquema. */
+function esRelacionAusente(error: { code?: string; message?: string } | null): boolean {
+  if (!error) return false
+  return error.code === 'PGRST200' || error.code === 'PGRST205' ||
+    /relationship|schema cache/i.test(error.message ?? '')
+}
+
+/**
+ * LAS RESCATADAS: las que se abrieron desde el buscador y no estaban cargadas.
+ *
+ * El buscador pregunta al SERVIDOR y alcanza los 16 000 mensajes, pero la
+ * lista solo tiene las 1000 más recientes más la cola con trabajo. Así que un
+ * resultado podía apuntar a una conversación que no estaba en memoria, y al
+ * pulsarlo la pantalla se quedaba en «Elige una conversación».
+ *
+ * Medido el 8/9/2026 contra la base. De 4118 conversaciones que hay, la lista
+ * tenía 1122: las 2996 restantes NO se podían abrir desde un resultado.
+ * Buscando «Chiapas» salían 16 conversaciones y SIETE eran de esas — otras
+ * cuatro caían fuera de la ventana pero entraban igual por la cola, porque
+ * tenían el carrito validado.
+ *
+ * Los términos comunes no fallaban NUNCA: sus 50 coincidencias más nuevas son
+ * todas recientes, y lo reciente sí está cargado. Por eso no salió antes, y
+ * por eso el fallo era peor de lo que parecía: falla justo con lo raro, que
+ * es exactamente para lo que se usa un buscador.
+ *
+ * Se arregla METIENDO LA FILA EN LA LISTA DE VERDAD, no con un estado
+ * paralelo. Todo lo que ya funciona —las mutaciones optimistas, el realtime,
+ * el orden, la cabecera— trabaja sobre `claves.conversaciones` buscando por
+ * `id` o `cliente_id`; una conversación que viviera fuera de ese array se
+ * abriría pero no se actualizaría, y una pausa o una etiqueta se perderían en
+ * silencio. Dentro del array no hay ningún camino nuevo que mantener.
+ *
+ * Y se apuntan aquí para que SOBREVIVAN A UNA RECARGA de la lista: si no, la
+ * siguiente invalidación reconstruye el array desde el servidor sin ella y la
+ * conversación desaparecería de debajo de quien la está leyendo.
+ *
+ * El tope de 25 evita que el filtro crezca sin fin en una sesión larga. Se va
+ * la más antigua, que es la que menos probable es que sigas mirando.
+ */
+const RESCATADAS = new Set<string>()
+const TOPE_RESCATADAS = 25
+
+export function apuntarRescatada(clienteId: string) {
+  RESCATADAS.delete(clienteId)
+  RESCATADAS.add(clienteId)
+  while (RESCATADAS.size > TOPE_RESCATADAS) {
+    RESCATADAS.delete(RESCATADAS.values().next().value as string)
+  }
+}
+
+/** Solo para las pruebas y para leerlo desde fuera sin poder tocarlo. */
+export function rescatadas(): string[] { return [...RESCATADAS] }
+export function _olvidarRescatadas() { RESCATADAS.clear() }
+
 async function idsConTrabajo(): Promise<number[]> {
   const { data, error } = await supabase
     .from('conversacion_productos')
@@ -250,11 +305,7 @@ export function useConversaciones() {
       let ventana = await pedir(select)
 
       if (ventana.error) {
-        const esRelacionAusente =
-          ventana.error.code === 'PGRST200' ||
-          ventana.error.code === 'PGRST205' ||
-          /relationship|schema cache/i.test(ventana.error.message)
-        if (!esRelacionAusente) throw new Error(ventana.error.message)
+        if (!esRelacionAusente(ventana.error)) throw new Error(ventana.error.message)
         select = COLUMNAS_LISTA
         ventana = await pedir(select)
         if (ventana.error) throw new Error(ventana.error.message)
@@ -274,6 +325,7 @@ export function useConversaciones() {
           .select(select)
           .or([
             conCarrito.length ? `id.in.(${conCarrito.join(',')})` : null,
+            RESCATADAS.size ? `cliente_id.in.(${[...RESCATADAS].join(',')})` : null,
             'favorita.is.true', 'fijada.is.true', 'escalada_en.not.is.null',
           ].filter(Boolean).join(','))
         if (cola.error) throw new Error(cola.error.message)
@@ -289,6 +341,74 @@ export function useConversaciones() {
 
     staleTime: 10_000,
   })
+}
+
+/**
+ * ABRIR UNA CONVERSACIÓN QUE NO ESTÁ EN LA LISTA.
+ *
+ * Se dispara solo cuando hace falta: si la conversación de la URL ya está
+ * cargada —el caso normal, y el de todas las que se abren pulsando en la
+ * lista— esto no pide nada. Solo pregunta cuando has llegado por el buscador
+ * o por un enlace directo a una conversación vieja.
+ *
+ * Cuesta UNA fila, no una página: ~1 KB frente a los 96 KB de la ventana. Y
+ * se queda cacheada para siempre (`staleTime: Infinity`), porque en cuanto
+ * entra en la lista es esa lista la que manda; volver a pedirla sería pagar
+ * dos veces por el mismo dato.
+ *
+ * Devuelve en qué punto está para poder decirlo en pantalla. Un hueco mudo es
+ * lo que teníamos, y es justo lo que hay que quitar: quien pulsa un resultado
+ * tiene que ver que se está abriendo, o que no se pudo.
+ */
+export function useRescatarConversacion(
+  clienteId: string | undefined,
+  conversaciones: Conversacion[] | undefined,
+) {
+  const qc = useQueryClient()
+  // `conversaciones` en `undefined` es «todavía no ha cargado la lista», no
+  // «no está». Sin esta distinción se pediría en cada arranque, antes de
+  // saber siquiera si hacía falta.
+  const falta = !!clienteId && !!conversaciones &&
+    !conversaciones.some((c) => c.cliente_id === clienteId)
+
+  const q = useQuery({
+    queryKey: ['conversacion-rescatada', clienteId],
+    enabled: falta,
+    staleTime: Infinity,
+    queryFn: async (): Promise<Conversacion | null> => {
+      const pedir = (select: string) => supabase
+        .from('conversaciones').select(select).eq('cliente_id', clienteId!).limit(1)
+      let r = await pedir(SELECT_LISTA)
+      if (r.error && esRelacionAusente(r.error)) r = await pedir(COLUMNAS_LISTA)
+      if (r.error) throw new Error(r.error.message)
+      const filas = (r.data ?? []) as unknown as Record<string, unknown>[]
+      if (!filas.length) return null
+      // Por el MISMO filtro que la lista: una fila corrupta no puede colarse
+      // por esta puerta de atrás y reventar el hilo.
+      const { validas } = separar(filas)
+      return validas[0] ?? null
+    },
+  })
+
+  const fila = q.data ?? null
+  useEffect(() => {
+    if (!fila) return
+    apuntarRescatada(fila.cliente_id)
+    qc.setQueryData<Conversacion[]>(claves.conversaciones, (v) => {
+      if (!v) return v
+      if (v.some((c) => c.id === fila.id)) return v
+      return ordenarLista([...v, fila])
+    })
+  }, [fila, qc])
+
+  // Los dos estados TIENEN que excluirse. Mirando `fila === null` en los
+  // dos, una conversación que no existe daba «Abriendo…» para siempre: la
+  // consulta ya había terminado y el hueco seguía diciendo que iba a llegar.
+  // Se distingue por la consulta, no por el dato: en vuelo, o terminada.
+  return {
+    rescatando: falta && q.isPending,
+    noSePudo: falta && (q.isError || (q.isSuccess && fila === null)),
+  }
 }
 
 /** Las filas apartadas por no poder abrirse. Vacío es lo normal. */

@@ -1,7 +1,9 @@
 import { useMemo } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { MessagesSquare, Settings } from 'lucide-react'
-import { useConversaciones, useCanales, useRealtime } from '@/hooks/datos'
+import {
+  useConversaciones, useCanales, useRealtime, useRescatarConversacion,
+} from '@/hooks/datos'
 import { useAtajos } from '@/hooks/useAtajos'
 import { ListaConversaciones } from '@/componentes/ListaConversaciones'
 import { Cabecera } from '@/componentes/Cabecera'
@@ -25,6 +27,9 @@ export function Inbox() {
     () => (conversaciones ?? []).find((c) => c.cliente_id === clienteId),
     [conversaciones, clienteId],
   )
+  // Si la URL apunta a una que no entró en la ventana —viniendo del buscador,
+  // o de un enlace guardado—, se trae esa sola y se mete en la lista.
+  const { rescatando, noSePudo } = useRescatarConversacion(clienteId, conversaciones)
   const canal = useMemo<Canal | undefined>(
     () => (canales ?? []).find((c) => c.id === conv?.canal_id),
     [canales, conv],
@@ -74,10 +79,23 @@ export function Inbox() {
           </ErrorBoundary>
         ) : (
           <div className="fondo-hilo flex h-full items-center justify-center">
-            <Vacio
-              titulo="Elige una conversación"
-              detalle="A / D para moverte · Ctrl+B para buscar · Esc para cerrar"
-            />
+            {/* Tres huecos distintos, y se dicen distintos. Antes los tres
+                ponían «Elige una conversación», así que abrir un resultado
+                del buscador que no estaba cargado parecía que no hacía
+                nada. */}
+            {rescatando ? (
+              <Vacio titulo="Abriendo la conversación…" detalle="No estaba cargada; se está trayendo." />
+            ) : noSePudo ? (
+              <Vacio
+                titulo="No se pudo abrir esa conversación"
+                detalle={'Nadie con el número ' + clienteId + '. Puede que el enlace esté mal.'}
+              />
+            ) : (
+              <Vacio
+                titulo="Elige una conversación"
+                detalle="A / D para moverte · Ctrl+B para buscar · Esc para cerrar"
+              />
+            )}
           </div>
         )}
       </main>
