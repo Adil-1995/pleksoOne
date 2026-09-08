@@ -84,10 +84,23 @@ export function estadoPedidoDe(productos: { estado: EstadoProducto }[]): EstadoP
   return 'interesado'
 }
 
-/** Los productos de una conversación, ya ordenados por lo más reciente. */
+/**
+ * Los productos de una conversación, ya ordenados por lo más reciente.
+ *
+ * El `?? ''` NO es adorno. Esto ordenaba con `b.actualizado.localeCompare(...)`
+ * a pelo, y el 8/9/2026 tumbó la app entera en producción: al estrechar el
+ * `select` de la lista se dejó de pedir `actualizado`, así que llegaba
+ * `undefined` y el sort reventaba. Y reventaba SOLO en las conversaciones con
+ * dos o más productos, porque con una el comparador ni se llama — por eso no
+ * salió en las pruebas y sí en el inbox de verdad.
+ *
+ * Ahora el campo se vuelve a pedir (COLUMNAS_LISTA en hooks/datos.ts), pero
+ * el repliegue se queda: un campo que falta debe cambiar el ORDEN, nunca
+ * dejar la pantalla en blanco.
+ */
 export function productosDe(c: Conversacion) {
   return [...(c.conversacion_productos ?? [])].sort((a, b) =>
-    b.actualizado.localeCompare(a.actualizado))
+    (b.actualizado ?? '').localeCompare(a.actualizado ?? ''))
 }
 
 /** Todos los productos que aparecen de verdad en los datos, con su cuenta. */

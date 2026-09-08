@@ -176,8 +176,20 @@ const COLUMNAS_LISTA = [
   'escalada_en', 'escalada_vista_en', 'escalada_motivo',
 ].join(',')
 
+/**
+ * `actualizado` va aquí porque `productosDe` ordena por él. Se quedó fuera al
+ * estrechar el select y tumbó la app en producción el 8/9/2026: llegaba
+ * `undefined` y el sort reventaba, pero solo en las conversaciones con dos o
+ * más productos —con una, el comparador ni se llama—, así que pasó las
+ * pruebas y se cayó con datos reales.
+ *
+ * REGLA: antes de quitar un campo de aquí, búscalo en `src/`. Lo que falte
+ * no da error de compilación ni de red: llega `undefined` y revienta donde
+ * se use, o peor, se pinta vacío.
+ */
 const SELECT_LISTA =
-  COLUMNAS_LISTA + ',etiquetas(id,nombre,color,orden),conversacion_productos(producto,estado)'
+  COLUMNAS_LISTA +
+  ',etiquetas(id,nombre,color,orden),conversacion_productos(producto,estado,actualizado)'
 
 /**
  * CuÃ¡ntas conversaciones recientes se traen de una vez.
