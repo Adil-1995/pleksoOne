@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   Star, Inbox as IconoInbox, BellOff, Ban, X, Boxes, Search, Tag, ShoppingCart, Radio, Mail,
+  Hand,
 } from 'lucide-react'
 import { useUI, type Bandeja } from '@/store/ui'
 import { useEtiquetas, useCanales } from '@/hooks/datos'
@@ -11,7 +12,7 @@ import {
   catalogoPresente, nombreProducto, estadoPedidoDe,
   ETIQUETA_ESTADO, CICLO_PEDIDO, PINTA_PEDIDO,
 } from '@/lib/productos'
-import type { Conversacion, EstadoProducto } from '@/tipos'
+import { escaladaAbierta, type Conversacion, type EstadoProducto } from '@/tipos'
 
 /**
  * Bandejas y filtros.
@@ -35,6 +36,7 @@ export function FiltrosLista({ conversaciones }: { conversaciones: Conversacion[
     busqueda, setBusqueda, buscadorAbierto, abrirBuscador, cerrarBuscador,
     etiquetasAbiertas, alternarEtiquetas, pedidoFiltro, setPedidoFiltro,
     canalFiltro, setCanalFiltro, soloNoLeidas, setSoloNoLeidas,
+    soloEscaladas, setSoloEscaladas,
   } = useUI()
   const { data: etiquetas } = useEtiquetas()
   const { data: canales } = useCanales()
@@ -108,9 +110,13 @@ export function FiltrosLista({ conversaciones }: { conversaciones: Conversacion[
   // bandeja, igual que los carritos: es un filtro global.
   const conNoLeidas = conversaciones.filter((c) => c.no_leidos > 0).length
 
+  // Conversaciones con un escalado abierto. Igual que las de arriba: sobre
+  // la lista entera, porque es un filtro global.
+  const conEscalada = conversaciones.filter(escaladaAbierta).length
+
   const hayFiltro = etiquetaFiltro !== null || bandeja !== 'bandeja' ||
                     productoFiltro !== null || pedidoFiltro !== null ||
-                    canalFiltro !== null || soloNoLeidas
+                    canalFiltro !== null || soloNoLeidas || soloEscaladas
 
   return (
     <div className="border-b border-borde">
@@ -346,6 +352,49 @@ export function FiltrosLista({ conversaciones }: { conversaciones: Conversacion[
                 <Mail className="h-4 w-4" />
                 {conNoLeidas > 0 && <span className="tabular-nums">{conNoLeidas}</span>}
               </button>
+
+              {/*
+                ESCALADAS, pegado al de sin leer. Los dos contestan a «¿tengo
+                trabajo ahora mismo?» y por eso van juntos, pero no dicen lo
+                mismo: sin leer es que nadie lo ha abierto; escalada es que
+                MARÍA SE HA RENDIDO y se ha callado con el cliente delante.
+
+                POR QUÉ ESTE ES EL BOTÓN QUE MÁS SE TIENE QUE VER. Desde que
+                el escalado calla a María, una conversación escalada no da
+                ninguna señal por sí sola: el cliente pregunta, nadie
+                contesta y la fila ni siquiera sube. El único aviso era el
+                Telegram, y un aviso que hay que estar mirando no es una red
+                de seguridad. Este número es la red.
+
+                EN ROJO Y NO EN VERDE, al revés que los otros filtros. El
+                acento se usa para lo que va bien; esto es lo que está
+                parado. Encendido, se pinta el botón entero de rojo para que
+                se distinga de un vistazo de tener puesto cualquier otro
+                filtro.
+
+                EL NÚMERO SIEMPRE Y SIN ESCONDERSE CON CERO, por lo mismo
+                que en sin leer: un icono que desaparece es indistinguible
+                de uno roto, y cero aquí es una respuesta que se quiere leer
+                —«no hay nadie esperando»—, no una ausencia.
+              */}
+              <button
+                onClick={() => setSoloEscaladas(!soloEscaladas)}
+                title={'Escaladas (' + conEscalada + ')\n' +
+                       'María se calló y dejó la conversación esperando a una persona.'}
+                aria-label="Escaladas"
+                aria-pressed={soloEscaladas}
+                className={[
+                  'flex shrink-0 items-center gap-1 rounded-full px-2 py-1.5 text-xs font-medium transition-colors',
+                  soloEscaladas
+                    ? 'bg-alerta text-fondo'
+                    : conEscalada > 0
+                      ? 'bg-alerta/15 text-alerta hover:bg-alerta/25'
+                      : 'bg-panel2 text-texto2 hover:text-texto',
+                ].join(' ')}
+              >
+                <Hand className="h-4 w-4" />
+                {conEscalada > 0 && <span className="tabular-nums">{conEscalada}</span>}
+              </button>
             </TiraDesplazable>
           </div>
 
@@ -412,6 +461,7 @@ export function FiltrosLista({ conversaciones }: { conversaciones: Conversacion[
             <span className="min-w-0 flex-1 truncate text-xs">
               <strong className="font-semibold">{descripcionFiltro({
                 bandeja, productoFiltro, estadoProductoFiltro, pedidoFiltro, soloNoLeidas,
+                soloEscaladas,
                 canal: canalesVisibles.find((c) => c.id === canalFiltro)?.nombre ?? null,
                 etiqueta: (etiquetas ?? []).find((e) => e.id === etiquetaFiltro)?.nombre ?? null,
               })}</strong>
@@ -544,13 +594,15 @@ function TiraDesplazable({
 
 /** Lo que estás viendo, en una frase. Sin adivinanzas. */
 function descripcionFiltro({
-  bandeja, productoFiltro, estadoProductoFiltro, pedidoFiltro, soloNoLeidas, canal, etiqueta,
+  bandeja, productoFiltro, estadoProductoFiltro, pedidoFiltro, soloNoLeidas, soloEscaladas,
+  canal, etiqueta,
 }: {
   bandeja: Bandeja
   productoFiltro: string | null
   estadoProductoFiltro: EstadoProducto | null
   pedidoFiltro: EstadoProducto | null
   soloNoLeidas: boolean
+  soloEscaladas: boolean
   canal: string | null
   etiqueta: string | null
 }): string {
@@ -566,6 +618,7 @@ function descripcionFiltro({
   if (bandeja === 'silenciadas') trozos.push('silenciadas')
   if (bandeja === 'bloqueadas') trozos.push('bloqueadas')
   if (soloNoLeidas) trozos.push('sin leer')
+  if (soloEscaladas) trozos.push('escaladas')
   if (pedidoFiltro) trozos.push(PINTA_PEDIDO[pedidoFiltro].texto.toLowerCase())
   if (etiqueta) trozos.push(`etiqueta «${etiqueta}»`)
 
@@ -575,7 +628,7 @@ function descripcionFiltro({
 /** El filtrado en sí, fuera del componente para poder probarlo aparte. */
 export function aplicarFiltros(
   lista: Conversacion[],
-  { bandeja, etiquetaFiltro, canalFiltro, productoFiltro, estadoProductoFiltro, pedidoFiltro, soloNoLeidas, busqueda }: {
+  { bandeja, etiquetaFiltro, canalFiltro, productoFiltro, estadoProductoFiltro, pedidoFiltro, soloNoLeidas, soloEscaladas, busqueda }: {
     bandeja: Bandeja
     etiquetaFiltro: number | null
     canalFiltro: number | null
@@ -583,6 +636,7 @@ export function aplicarFiltros(
     estadoProductoFiltro: EstadoProducto | null
     pedidoFiltro: EstadoProducto | null
     soloNoLeidas: boolean
+    soloEscaladas: boolean
     busqueda: string
   },
 ): Conversacion[] {
@@ -613,6 +667,11 @@ export function aplicarFiltros(
   //    "sin leer de México" o "sin leer con pedido pendiente" son preguntas
   //    útiles, y una bandeja excluyente no dejaría hacerlas.
   if (soloNoLeidas) out = out.filter((c) => c.no_leidos > 0)
+
+  // 5. Escaladas. Se combina igual que el anterior, y ahí está la gracia:
+  //    "escaladas sin leer" es la lista de las que además nadie ha abierto,
+  //    que es por donde hay que empezar.
+  if (soloEscaladas) out = out.filter(escaladaAbierta)
 
   // 3. Producto. El estado solo se aplica DENTRO de un producto: filtrar por
   //    "comprados" sin decir de qué mezclaría clientes de productos distintos

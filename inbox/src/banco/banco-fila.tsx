@@ -49,6 +49,8 @@ const base: Conversacion = {
   ctwa_clid: null, ad_id: null, creado: '2026-08-01T09:00:00Z',
   canal: 'whatsapp_cloud', canal_id: 1, favorita: false, fijada: false,
   silenciada: false, bloqueada: false, bloqueada_en: null, bloqueo_nota: null,
+  escalada_en: null, escalada_motivo: null,
+  escalada_vista_en: null, escalada_vista_por: null,
   etiquetas: [], conversacion_productos: [],
 }
 
@@ -104,6 +106,41 @@ const CASOS: { titulo: string; conv: Conversacion; canal?: Canal; callada?: bool
     titulo: '6. SIN fijar: ninguna chincheta encendida',
     conv: { ...base, cliente_id: '5215577665544', nombre: 'Rosa',
       ultimo_texto: '¿me llega mañana?', fijada: false },
+    canal: MX,
+  },
+  {
+    // La mano roja tiene que salir arriba a la derecha, ANTES del BotOff y
+    // del marcapáginas. Y el motivo solo en el `title`: aquí se mira que un
+    // motivo largo no le robe ancho al nombre.
+    titulo: '7. ESCALADA: mano roja arriba a la derecha, motivo solo en el title',
+    conv: { ...base, cliente_id: '5214426020912', nombre: 'Verónica',
+      ultimo_texto: 'y cuánto tarda en llegar a Chiapas?',
+      no_leidos: 2,
+      escalada_en: new Date().toISOString(),
+      escalada_motivo: 'el cliente pregunta por el coste de envío a una zona que no está en el catálogo y no tengo el dato' },
+    canal: MX,
+  },
+  {
+    // EL CASO QUE HAY QUE MIRAR de los dos: escaló, alguien lo resolvió, y
+    // NO tiene que salir la mano. Si sale, `escaladaAbierta` está mirando
+    // solo `escalada_en` y el contador de la barra no bajará nunca.
+    titulo: '7b. ESCALADA Y RESUELTA: sin mano. Si se ve, el aviso no se apaga nunca',
+    conv: { ...base, cliente_id: '5214426020913', nombre: 'Verónica (resuelta)',
+      ultimo_texto: 'ah vale, gracias',
+      escalada_en: '2026-09-08T09:00:00Z',
+      escalada_motivo: 'el mismo motivo de arriba',
+      escalada_vista_en: '2026-09-08T09:04:00Z' },
+    canal: MX,
+  },
+  {
+    // Y el tercero: resuelta ANTES y vuelta a escalar DESPUÉS. La mano
+    // tiene que volver sola, sin que nadie toque nada.
+    titulo: '7c. REABIERTA: resuelta a las 9:04 y escalada otra vez a las 9:20. Mano SÍ',
+    conv: { ...base, cliente_id: '5214426020914', nombre: 'Verónica (reabierta)',
+      ultimo_texto: 'oiga, sigo esperando',
+      escalada_en: '2026-09-08T09:20:00Z',
+      escalada_motivo: 'vuelve a preguntar lo mismo',
+      escalada_vista_en: '2026-09-08T09:04:00Z' },
     canal: MX,
   },
   {

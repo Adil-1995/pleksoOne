@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Star, Pin, BotOff, Bookmark, BookmarkX } from 'lucide-react'
+import { Star, Pin, BotOff, Bookmark, BookmarkX, Hand } from 'lucide-react'
 import { useConversaciones, useCanales, usePonerFavorita, usePonerFijada , useConversacionesCorruptas, motivoCorrupta, useMarcas, usePonerMarca } from '@/hooks/datos'
 import { mariaAtiende, distintivo } from '@/lib/canales'
 import { useUI } from '@/store/ui'
@@ -12,7 +12,7 @@ import { EsqueletoLista, Vacio } from './Esqueletos'
 import { FiltrosLista, aplicarFiltros } from './FiltrosLista'
 import { IconoEstado } from './EstadoConv'
 import { CarritoPedido } from './CarritoPedido'
-import type { Conversacion, Canal } from '@/tipos'
+import { escaladaAbierta, type Conversacion, type Canal } from '@/tipos'
 
 const TITULO_VACIO: Record<string, string> = {
   bandeja: 'Todavía no hay conversaciones',
@@ -26,6 +26,7 @@ export function ListaConversaciones() {
   const { data: canales } = useCanales()
   const { busqueda, resaltado, setResaltado, bandeja, etiquetaFiltro,
           productoFiltro, estadoProductoFiltro, pedidoFiltro, canalFiltro, soloNoLeidas,
+          soloEscaladas,
           anclaLista, setAnclaLista, ultimaAbierta, setUltimaAbierta,
           deslizada, setDeslizada } = useUI()
   const marcas = useMarcas()
@@ -48,8 +49,8 @@ export function ListaConversaciones() {
 
   const filtradas = useMemo(
     () => aplicarFiltros(conversaciones ?? [],
-      { bandeja, etiquetaFiltro, canalFiltro, productoFiltro, estadoProductoFiltro, pedidoFiltro, soloNoLeidas, busqueda }),
-    [conversaciones, bandeja, etiquetaFiltro, canalFiltro, productoFiltro, estadoProductoFiltro, pedidoFiltro, soloNoLeidas, busqueda],
+      { bandeja, etiquetaFiltro, canalFiltro, productoFiltro, estadoProductoFiltro, pedidoFiltro, soloNoLeidas, soloEscaladas, busqueda }),
+    [conversaciones, bandeja, etiquetaFiltro, canalFiltro, productoFiltro, estadoProductoFiltro, pedidoFiltro, soloNoLeidas, soloEscaladas, busqueda],
   )
 
   const virtual = useVirtualizer({
@@ -239,6 +240,9 @@ export function Fila({
   const fijada = usePonerFijada()
   const etiquetas = conv.etiquetas ?? []
   const productos = productosDe(conv)
+  // Sale de la conversación y no de una prop, al revés que `callada`: eso
+  // es del CANAL y hay que traérselo de fuera; esto viaja en la propia fila.
+  const escalada = escaladaAbierta(conv)
 
   /*
     EL GESTO DE DESLIZAR.
@@ -493,6 +497,36 @@ export function Fila({
               nombre como si no.
             */}
             <span className="ml-auto flex shrink-0 items-center gap-1.5">
+              {/*
+                ESCALADA, y la primera del grupo porque es la única que
+                significa «esto está parado esperándote».
+
+                Va aquí y no abajo con las etiquetas por el mismo motivo que
+                la marca y la pausa: su control no está en esta fila —se
+                resuelve desde la cabecera del hilo—, así que el distintivo
+                es la única señal que hay, no una repetición de un botón que
+                ya lo dice.
+
+                El `title` lleva el motivo que escribió María. Es texto suyo
+                y puede ser cualquier cosa, así que se enseña al pasar por
+                encima y no en la fila: ocupando sitio fijo, un motivo largo
+                le comería el nombre al cliente en un móvil.
+              */}
+              {escalada && (
+                // El title va en el <span> y no en el icono: los de lucide
+                // no lo aceptan como prop y lo tiran sin decir nada.
+                <span
+                  title={conv.escalada_motivo
+                    ? 'Escalada: ' + conv.escalada_motivo
+                    : 'Escalada: esperando a una persona'}
+                  className="flex"
+                >
+                  <Hand
+                    className="h-3.5 w-3.5 text-alerta"
+                    aria-label="Escalada: esperando a una persona"
+                  />
+                </span>
+              )}
               {callada && (
                 <BotOff className="h-3.5 w-3.5 text-alerta" aria-label="María pausada en este canal" />
               )}

@@ -29,6 +29,26 @@ export async function ponerFijada(clienteId: string, fijada: boolean): Promise<v
   if (error) throw new Error(error.message)
 }
 
+/**
+ * Dar por resuelto el escalado de una conversación.
+ *
+ * Se escribe SOLO `escalada_vista_en`. `escalada_en` y `escalada_motivo`
+ * son del flujo y no se tocan desde aquí: borrarlos dejaría el inbox sin
+ * forma de decir «esto ya escaló una vez», que es justo lo que hay que
+ * mirar cuando el mismo cliente vuelve.
+ *
+ * La fecha que se manda da igual: el trigger `tocar_escalado` la
+ * sobrescribe con NOW() del servidor y añade el auth.uid(). Se manda una
+ * porque PostgREST necesita un valor no nulo para que el trigger entre.
+ */
+export async function resolverEscalado(clienteId: string): Promise<void> {
+  const { error } = await supabase
+    .from('conversaciones')
+    .update({ escalada_vista_en: new Date().toISOString() })
+    .eq('cliente_id', clienteId)
+  if (error) throw new Error(error.message)
+}
+
 // ── Marcar comprado a mano ───────────────────────────────────────────────
 /**
  * CORRECCIÓN, no sustitución. El pedido automático sigue escribiendo aquí

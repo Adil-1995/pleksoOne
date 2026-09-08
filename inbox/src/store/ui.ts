@@ -70,6 +70,17 @@ interface EstadoUI {
   soloNoLeidas: boolean
   setSoloNoLeidas: (v: boolean) => void
 
+  /**
+   * Solo las conversaciones con un escalado abierto.
+   *
+   * Booleano por lo mismo que `soloNoLeidas`: no hay estados que elegir, o
+   * las filtras o no. Y se COMBINA con el resto en vez de ser una bandeja
+   * aparte — «escaladas de México» es una pregunta real, y una bandeja
+   * excluyente no dejaría hacerla.
+   */
+  soloEscaladas: boolean
+  setSoloEscaladas: (v: boolean) => void
+
   limpiarFiltros: () => void
 
   /**
@@ -180,6 +191,9 @@ export const useUI = create<EstadoUI>((set) => ({
   soloNoLeidas: false,
   setSoloNoLeidas: (v) => set({ soloNoLeidas: v, resaltado: 0 }),
 
+  soloEscaladas: false,
+  setSoloEscaladas: (v) => set({ soloEscaladas: v, resaltado: 0 }),
+
   anclaLista: null,
   setAnclaLista: (a) => set({ anclaLista: a }),
 
@@ -193,6 +207,7 @@ export const useUI = create<EstadoUI>((set) => ({
     set({
       bandeja: 'bandeja', etiquetaFiltro: null, pedidoFiltro: null,
       productoFiltro: null, estadoProductoFiltro: null, soloNoLeidas: false,
+      soloEscaladas: false,
       busqueda: '', buscadorAbierto: false, resaltado: 0,
     }),
 

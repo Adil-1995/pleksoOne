@@ -54,6 +54,8 @@ const CONV: Conversacion = {
   ctwa_clid: 'ARBc0000', ad_id: '120210000000', creado: '2026-09-01T13:32:00Z',
   canal: 'whatsapp_cloud', canal_id: 2, favorita: false, fijada: false,
   silenciada: false, bloqueada: false, bloqueada_en: null, bloqueo_nota: null,
+  escalada_en: null, escalada_motivo: null,
+  escalada_vista_en: null, escalada_vista_por: null,
   etiquetas: [], conversacion_productos: [],
 } as Conversacion
 

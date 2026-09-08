@@ -5,7 +5,7 @@ import { ponerBot } from '@/lib/envio'
 import {
   leerEtiquetas, crearEtiqueta, editarEtiqueta, borrarEtiqueta,
   ponerEtiqueta, quitarEtiqueta, contarPorEtiqueta,
-  ponerFavorita, ponerSilenciada, ponerFijada,
+  ponerFavorita, ponerSilenciada, ponerFijada, resolverEscalado,
   marcarProducto, quitarProducto, crearCanal, editarCanal,
   leerMarcas, ponerMarca, quitarMarca,
 } from '@/lib/conversaciones'
@@ -272,6 +272,21 @@ export function usePonerSilenciada() {
 
 export function usePonerFijada() {
   return useCampoConversacion<boolean>(ponerFijada, 'fijada')
+}
+
+/**
+ * Dar por resuelto el escalado. Mismo patrón optimista que la estrella.
+ *
+ * El `valor` que se le pasa es la fecha con la que se PINTA mientras el
+ * servidor contesta; la que se guarda de verdad la pone el trigger. Es una
+ * diferencia sin consecuencias —solo se comparan entre ellas y las dos son
+ * de hace un instante— y el refetch de `onSettled` deja la buena.
+ */
+export function useResolverEscalado() {
+  return useCampoConversacion<string>(
+    (clienteId) => resolverEscalado(clienteId),
+    'escalada_vista_en',
+  )
 }
 
 /**

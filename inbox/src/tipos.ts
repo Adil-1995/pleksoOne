@@ -81,6 +81,28 @@ export interface Conversacion {
   bloqueada: boolean
   bloqueada_en: string | null
   bloqueo_nota: string | null
+
+  // ── 16-escalado.sql ──
+  /**
+   * Cuándo escaló María por última vez, o NULL si no lo ha hecho nunca.
+   * Lo escribe el receptor de n8n con la service_role; el navegador solo
+   * lee esta columna y nunca la toca.
+   */
+  escalada_en: string | null
+  /**
+   * Lo que María puso dentro de `[ESCALAR: ...]`.
+   *
+   * Es texto libre del MODELO, así que vale para que un humano entienda de
+   * un vistazo qué pasó — y para nada más. No se filtra ni se agrupa por
+   * él: hoy dice «no sé el precio del envío a Chiapas» y mañana lo mismo
+   * con otras palabras.
+   */
+  escalada_motivo: string | null
+  /** Cuándo lo dio por resuelto una persona. NULL = nadie lo ha mirado. */
+  escalada_vista_en: string | null
+  /** Quién lo resolvió. Lo escribe un trigger desde auth.uid(). */
+  escalada_vista_por: string | null
+
   /** Llega por embed de PostgREST a través de conversacion_etiquetas. */
   etiquetas?: Etiqueta[]
   /** Productos que toca esta conversación. Lo rellena el flujo, nunca a mano. */
@@ -162,6 +184,33 @@ export function estadoDe(c: Pick<Conversacion, 'bot_activo' | 'silenciada' | 'bl
   if (c.silenciada) return 'silenciada'
   if (!c.bot_activo) return 'pausada'
   return 'atendiendo'
+}
+
+/**
+ * ¿Hay un escalado ABIERTO en esta conversación?
+ *
+ * Se calcula en un sitio, igual que `estadoDe`, y por el mismo motivo: lo
+ * miran la fila de la lista, el contador de la barra y la cabecera del
+ * hilo. Con la comparación escrita tres veces, el día que cambie el
+ * criterio quedarán dos sitios diciendo una cosa y uno diciendo otra.
+ *
+ * FUERA de `EstadoConversacion` a propósito. Aquello contesta a «quién
+ * responde a este cliente» y sus cuatro valores son excluyentes. Esto es
+ * otra pregunta —«¿hay alguien esperando a que un humano intervenga?»— y
+ * puede ser cierta a la vez que cualquiera de las otras: lo NORMAL es una
+ * conversación escalada con María todavía atendiendo, porque la pausa
+ * automática aún no existe.
+ *
+ * REABRE SOLA: si María vuelve a escalar después de que alguien lo diera
+ * por resuelto, `escalada_en` pasa a ser posterior a `escalada_vista_en` y
+ * esto vuelve a `true` sin que nadie tenga que acordarse de nada.
+ */
+export function escaladaAbierta(
+  c: Pick<Conversacion, 'escalada_en' | 'escalada_vista_en'>,
+): boolean {
+  if (!c.escalada_en) return false
+  if (!c.escalada_vista_en) return true
+  return new Date(c.escalada_vista_en).getTime() < new Date(c.escalada_en).getTime()
 }
 
 export interface Adjunto {

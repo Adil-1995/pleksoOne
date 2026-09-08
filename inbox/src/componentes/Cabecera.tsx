@@ -1,10 +1,10 @@
-import { ArrowLeft, Clock3, AlertTriangle, Ban, BellOff, Pin, Bot, BotOff } from 'lucide-react'
+import { ArrowLeft, Clock3, AlertTriangle, Ban, BellOff, Pin, Bot, BotOff, Hand } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { usePonerBot, usePonerSilenciada, useEtiquetarConversacion } from '@/hooks/datos'
+import { usePonerBot, usePonerSilenciada, useEtiquetarConversacion, useResolverEscalado } from '@/hooks/datos'
 import { capacidadesDe, estadoVentana } from '@/lib/canales'
 import { clasePastilla } from '@/lib/colores'
-import { iniciales, colorAvatar, telefonoLegible } from '@/lib/formato'
-import { estadoDe, type Conversacion, type Canal } from '@/tipos'
+import { iniciales, colorAvatar, telefonoLegible, horaLista } from '@/lib/formato'
+import { estadoDe, escaladaAbierta, type Conversacion, type Canal } from '@/tipos'
 import { pintaEstado } from './EstadoConv'
 import { MenuConversacion } from './MenuConversacion'
 
@@ -28,6 +28,7 @@ export function Cabecera({
   const poner = usePonerBot()
   const silenciada = usePonerSilenciada()
   const etiquetar = useEtiquetarConversacion()
+  const resolver = useResolverEscalado()
 
   const cap = capacidadesDe(canal, conv.canal)
   const ventana = estadoVentana(conv, cap)
@@ -161,6 +162,45 @@ export function Cabecera({
       )}
 
       {/* ── Avisos de estado. No pueden pasar desapercibidos. ── */}
+
+      {/*
+        EL ESCALADO VA EL PRIMERO de los avisos, por encima de bloqueada y
+        de pausada. Los demás describen una situación estable que alguien
+        eligió; este dice que hay un cliente esperando AHORA y que María ya
+        no va a contestarle.
+
+        Y aquí está el botón de darlo por resuelto, que es el único que hay
+        en toda la app. No está en la fila de la lista a propósito: apagar
+        la alarma desde la lista es un dedo torpe rozando la pantalla al
+        hacer scroll. Para quitarla hay que haber ABIERTO la conversación,
+        que es exactamente lo que se quiere que pases a hacer.
+
+        El motivo se enseña entero, sin recortar: es lo que hace falta para
+        decidir si esto lo contestas tú en diez segundos o hay que buscar
+        el dato. Cabe porque ya viene limitado a 300 caracteres desde n8n.
+      */}
+      {escaladaAbierta(conv) && (
+        <div className="flex items-start gap-2 bg-alerta/15 px-4 py-1.5 text-xs text-alerta">
+          <Hand className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <span className="min-w-0 flex-1">
+            <strong className="font-semibold">María escaló y se calló</strong>
+            <span className="opacity-70"> · {horaLista(conv.escalada_en)}</span>
+            {conv.escalada_motivo && <> — {conv.escalada_motivo}</>}
+          </span>
+          <button
+            onClick={() => resolver.mutate({
+              clienteId: conv.cliente_id,
+              valor: new Date().toISOString(),
+            })}
+            disabled={resolver.isPending}
+            className="shrink-0 font-medium underline hover:no-underline disabled:opacity-50"
+            title="Quitar el aviso. Si María vuelve a escalar, reaparece solo."
+          >
+            Resuelto
+          </button>
+        </div>
+      )}
+
       {estado === 'bloqueada' && (
         <div className="flex items-center gap-2 bg-alerta/15 px-4 py-1.5 text-xs text-alerta">
           <Ban className="h-3.5 w-3.5 shrink-0" />
