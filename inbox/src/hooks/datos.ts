@@ -69,7 +69,7 @@ export function useGestionCanales() {
 /**
  * Fijadas arriba, y dentro de cada grupo por fecha del último mensaje.
  *
- * Se ordena AQU͍ y no con un `.order('fijada')` en la consulta a propósito:
+ * Se ordena AQUÍ y no con un `.order('fijada')` en la consulta a propósito:
  * si `fijada` todavía no existe (06-fijar-y-marcar.sql sin ejecutar),
  * PostgREST devolvería 42703 y la lista entera se quedaría en blanco por una
  * columna opcional. En JavaScript, una columna que no existe es `undefined`,
@@ -160,7 +160,7 @@ function separar(filas: unknown): { validas: Conversacion[]; corruptas: Conversa
  *
  * Lo caro nunca fueron las filas: era el `*`.
  *
- * Si añades un campo a la fila de la lista, AÑÁDELO AQU͍. Si no, llega
+ * Si añades un campo a la fila de la lista, AÑÁDELO AQUÍ. Si no, llega
  * `undefined` y no da error: se pinta vacío y nadie se entera.
  *
  * Lo que NO se trae a propósito, porque no lo lee nadie (comprobado con grep

@@ -194,7 +194,7 @@ export function ListaConversaciones() {
                       setDeslizada(null)
                     }}
                     onClick={(el) => {
-                      // El ancla se toma AQU͍, con la fila todavía en su
+                      // El ancla se toma AQUÍ, con la fila todavía en su
                       // sitio: después de navegar ya es tarde.
                       const caja = contenedor.current
                       const fila = (el.currentTarget as HTMLElement).closest('[data-cliente]')
@@ -286,7 +286,7 @@ export function Fila({
 
   const empezar = (e: React.PointerEvent) => {
     if (e.pointerType === 'mouse' && e.button !== 0) return
-    // Se limpia AQU͍, al empezar cada gesto, y no solo al tragarse el clic:
+    // Se limpia AQUÍ, al empezar cada gesto, y no solo al tragarse el clic:
     // un `pointercancel` (el navegador se queda el gesto, entra una llamada,
     // cambias de app) termina sin clic y dejaría la bandera puesta. Entonces
     // el siguiente toque, uno legítimo, se lo comería este mismo guardia y
@@ -490,7 +490,7 @@ export function Fila({
               en vertical. Ahora el número siempre arranca en el mismo punto
               y lo que baila es el borde derecho, que no se lee.
 
-              AQU͍ NO HAY PIN, y es a propósito. Lo había, y salían DOS
+              AQUÍ NO HAY PIN, y es a propósito. Lo había, y salían DOS
               chinchetas por fila: esta y la del botón de fijar, que ya se
               pone verde y rellena cuando la conversación está fijada. Un
               estado se anuncia UNA vez. Se quedó el botón porque es el
