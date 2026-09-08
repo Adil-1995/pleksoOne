@@ -3289,13 +3289,23 @@
             {
               "name": "Content-Type",
               "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
             }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify({ escalada_en: new Date().toISOString(), escalada_motivo: String($('Preparar aviso').item.json.motivo || '').slice(0, 300) }) }}",
-        "options": {}
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
       },
       "id": "marcar-escalada-supabase",
       "name": "Marcar escalada",
@@ -3303,6 +3313,117 @@
       "typeVersion": 4.2,
       "position": [
         2560,
+        1152
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/conversaciones?cliente_id=eq.{{ $('Variables').first().json.numero_cliente }}&bot_activo=is.true",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ bot_activo: false }) }}",
+        "options": {}
+      },
+      "id": "escalar-pausar",
+      "name": "Pausar al escalar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2816,
+        1152
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/etiquetas?nombre=eq.Incidencia&select=id",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          }
+        }
+      },
+      "id": "escalar-leer-etq",
+      "name": "Leer etiqueta Incidencia",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3072,
+        1152
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/conversacion_etiquetas?on_conflict=conversacion_id,etiqueta_id",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "={{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "resolution=ignore-duplicates"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ conversacion_id: $('Marcar escalada').first().json.body[0].id, etiqueta_id: $('Leer etiqueta Incidencia').first().json.body[0].id }) }}",
+        "options": {}
+      },
+      "id": "escalar-poner-etq",
+      "name": "Poner etiqueta Incidencia",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3328,
         1152
       ]
     }
@@ -4620,6 +4741,39 @@
         [
           {
             "node": "Añadir contexto",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar escalada": {
+      "main": [
+        [
+          {
+            "node": "Pausar al escalar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pausar al escalar": {
+      "main": [
+        [
+          {
+            "node": "Leer etiqueta Incidencia",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Leer etiqueta Incidencia": {
+      "main": [
+        [
+          {
+            "node": "Poner etiqueta Incidencia",
             "type": "main",
             "index": 0
           }
